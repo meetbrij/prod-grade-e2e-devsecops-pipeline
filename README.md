@@ -51,7 +51,7 @@ API: `GET /api/users`, `POST /api/users`, `PUT /api/users/:id`, `DELETE /api/use
 | Amazon S3 (Terraform remote state) | Stores Terraform state remotely with versioning and encryption, and native S3 state locking (`use_lockfile`) so concurrent runs cannot corrupt state. Keeps state out of Git and shared between local runs and the pipeline. | Infra |
 | AWS | Cloud platform hosting everything in this project. | Infra |
 | AWS IAM and IRSA | Least-privilege roles for CI (separate QA and prod deployers) and for pods (for example External Secrets Operator) via service-account-to-role binding. | Infra |
-| Amazon VPC | Network isolation: subnets, routing and security groups for the clusters and load balancers. | Infra |
+| Amazon VPC | Network isolation: subnets, routing and security groups for the cluster and load balancers. | Infra |
 | Amazon EKS | Managed Kubernetes control plane; AWS runs the API server and etcd, we manage node groups and workloads. | Infra |
 | Kubernetes | Orchestrates the app and database: Deployments, Services, Ingress, StatefulSets, namespaces and rolling updates for zero-downtime releases. | Infra |
 | Helm | Installs and versions cluster add-ons (AWS Load Balancer Controller, External Secrets Operator, kube-prometheus-stack, Loki, Tempo). | Infra |
@@ -223,24 +223,28 @@ Principles: security at every stage, **build once / promote the artifact**, immu
 
 ## Environments and Access
 
-Two environments: a non-prod EKS cluster running the `qa` namespace and a separate dedicated prod cluster running the `prod` namespace. All resources live in `ap-south-1`. Disaster recovery is provisioned on demand from IaC rather than kept running.
+Two environments, `qa` and `prod`, run as separate namespaces on a single EKS cluster to keep costs down. Isolation comes from namespaces, resource quotas, network policies and separate IAM deployer roles (each mapped to its own namespace through EKS access entries). All resources live in `ap-south-1`. Disaster recovery is provisioned on demand from IaC rather than kept running.
 
 ```mermaid
 flowchart LR
     GH[GitHub Actions] -->|OIDC| RA[IAM Role A<br/>QA deployer]
     GH -->|OIDC + approval| RB[IAM Role B<br/>PROD deployer]
-    RA --> NP[Non-prod EKS cluster<br/>qa namespace]
-    RB --> PC[Prod EKS cluster<br/>prod namespace]
+    subgraph EKS[Single EKS cluster]
+        NQ[qa namespace]
+        NP[prod namespace]
+    end
+    RA -->|access entry: qa only| NQ
+    RB -->|access entry: prod only| NP
 ```
 
-The QA and prod pipelines never share an IAM role.
+The QA and prod pipelines never share an IAM role. The QA role has no permissions on the `prod` namespace. Because both environments share one cluster, they also share the control plane and nodes; if stronger isolation is needed later, prod can move to its own cluster without changing the pipeline design.
 
 ## Extending to More Environments (dev, ppd)
 
 Only `qa` and `prod` are in scope today. The pipelines are meant to be driven by per-environment configuration so adding `dev` or `ppd` does not require restructuring:
 
 1. **Namespace and manifests:** copy `k8-manifests/qa/` to `k8-manifests/<env>/` and adjust namespace, replicas, resources, host and cert ARN.
-2. **Environment config:** add the environment's values (namespace, cluster name, IAM role ARN, host, ACM cert ARN, ECR repo) as GitHub Environment variables, or as a matrix entry in the workflow, instead of hardcoding them.
+2. **Environment config:** add the environment's values (namespace, cluster name (same cluster today), IAM role ARN, host, ACM cert ARN, ECR repo) as GitHub Environment variables, or as a matrix entry in the workflow, instead of hardcoding them.
 3. **Branch mapping:** decide which branch deploys to it (for example `feature/*` to `dev`, `qa` to `qa`, a pre-merge state of `main` to `ppd`) and add that trigger to the workflow's environment matrix.
 4. **AWS access:** extend the non-prod IAM deployer role's trust policy and namespace permissions to include the new namespace. Never give it access to `prod`.
 5. **Cluster add-ons:** create the namespace with its resource quota and network policies, plus its own SecretStore/ExternalSecret and Secrets Manager entry (`<env>/mysql-secret`).

@@ -52,8 +52,8 @@ Local: run MySQL separately, then `cd server && npm start`; build the frontend w
 
 ## Target Architecture
 
-- **Compute (2-environment model):** one non-prod EKS cluster hosting the `qa` namespace, and a separate dedicated prod EKS cluster hosting the `prod` namespace. Managed node groups; resource quotas/limit ranges and network policies per namespace. DR is provisioned on demand from IaC, not kept running.
-- **IAM isolation:** IAM Role A (QA deployer) may deploy only to non-prod namespaces; IAM Role B (PROD deployer) only to the prod namespace on the prod cluster, gated by a GitHub Environments manual-approval rule. QA and prod pipelines must never share a role; CloudTrail audits assume-role events.
+- **Compute:** a **single EKS cluster** (cost decision) with two namespaces, `qa` and `prod`. Managed node groups; resource quotas/limit ranges and network policies per namespace so qa cannot starve or reach prod. DR is provisioned on demand from IaC, not kept running. If stronger isolation is needed later, prod can move to its own cluster; keep cluster name and kubeconfig as per-environment variables so that move does not change pipeline structure.
+- **IAM isolation:** IAM Role A (QA deployer) is mapped via an EKS access entry scoped to the `qa` namespace only; IAM Role B (PROD deployer) is scoped to the `prod` namespace only and gated by a GitHub Environments manual-approval rule. QA and prod pipelines must never share a role, and Role A must have no access to `prod`. Because the cluster is shared, this AWS/EKS access scoping plus namespace RBAC is the isolation boundary. CloudTrail audits assume-role events.
 - **Ingress/DNS/TLS:** AWS Load Balancer Controller provisions an internet-facing ALB (target-type `ip`), TLS terminated with an **ACM** cert (DNS-validated, referenced via `alb.ingress.kubernetes.io/certificate-arn`), HTTP→HTTPS redirect. **Route 53** hosted zone with alias A record → ALB; the domain registrar delegates NS to Route 53. Hosts like `qa.<domain>`.
 - **App workload:** Deployment behind a ClusterIP Service.
 - **Database:** MySQL as **StatefulSet** (`mysql-0`) + headless Service (3306); StorageClass `ebs-sc` (gp2, `WaitForFirstConsumer`), 10Gi EBS PV, reclaim `Retain` (AZ-locked).
@@ -112,4 +112,3 @@ Rules to preserve:
 
 - SonarQube: self-hosted instance or SonarCloud?
 - Infrastructure provisioning: Terraform (the Checkov Terraform scan assumes it) or eksctl/manual?
-- Confirm the non-prod and prod clusters should be separate (per the environment model) versus one cluster with two namespaces, given cost.
