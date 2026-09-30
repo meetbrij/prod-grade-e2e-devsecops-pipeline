@@ -19,6 +19,7 @@ Production-grade DevSecOps project on AWS: a sample 3-tier User Management app (
 - **Scope:** two environments only, `qa` and `prod`. `dev` and `ppd` are out of scope, but pipelines/manifests should be parameterized by environment so they can be added later (the README documents how).
 - **Region:** `ap-south-1` for all project resources (EKS, ECR, ACM, Secrets Manager, Route 53 records). A separate Jenkins server exists in `us-east-1` and is unrelated to this project; do not couple to it.
 - **Registry:** private **Amazon ECR** in `ap-south-1`, same region as EKS (no cross-region transfer cost). Use one repository per app, immutable tags, scan-on-push optional (Trivy is the gate). Costs are low (storage per GB-month; pulls in-region are free); add a lifecycle policy to expire old untagged/SHA images.
+- **Terraform state:** remote backend in a dedicated S3 bucket in `ap-south-1` (versioning, encryption, public access blocked) with S3 native locking (`use_lockfile = true`, Terraform 1.10+); no DynamoDB table. Separate state per environment/cluster (qa and prod must not share a state file). The state bucket is created by a small bootstrap step outside the main configuration. State files must never be committed.
 - **Image tags:** QA builds are tagged `<git-sha>`; promotion retags the same image digest as `prod-<sha>` in the same ECR repo (no rebuild, no cross-registry copy). Never `latest`.
 
 ## Application (placeholder)
