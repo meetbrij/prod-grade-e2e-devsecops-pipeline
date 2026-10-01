@@ -89,9 +89,9 @@ Local: run MySQL separately, then `cd server && npm start`; build the frontend w
 **QA pipeline** (trigger: push/merge to `qa`), in order:
 1. Gitleaks (full history; hard gate)
 2. Parallel: Checkov (Terraform, Kubernetes, Dockerfile), Trivy FS (client, server), lint (client, server), client tests
-3. SonarQube analysis + Quality Gate
+3. SonarCloud analysis + Quality Gate
 4. Client build → Docker build (tagged with **git commit SHA**)
-5. Parallel: Trivy image scan, SBOM generation
+5. Parallel: Trivy image scan, SBOM generation (CycloneDX via Trivy), both run against the image archive built in step 4 so the scanned image is the one pushed
 6. Push to ECR
 7. Update image tag in `k8-manifests/qa/` and commit back (GitOps)
 8. Deploy to the EKS QA namespace (`kubectl apply`, `kubectl rollout status`)
@@ -116,7 +116,12 @@ Rules to preserve:
 - Ask before destructive or outward-facing actions (git push, cloud resource creation, deleting files).
 - When source files arrive, verify them against this document and flag drift rather than silently overwriting either.
 
+## Parked Work (backlog)
+
+- **Enforce scanners:** `ENFORCE_SCANS` is `"false"` in `qa-cicd.yml`, so Checkov and Trivy only report. Must be set to `"true"` before the prod pipeline goes live or the real app replaces the sample app. Findings from the first run: Checkov Dockerfile 1 (no HEALTHCHECK); Checkov Kubernetes 41 across 19 checks (securityContext, resources, probes, imagePullPolicy, automountServiceAccountToken, default-namespace Service in `qa/app-svc.yaml`, NetworkPolicy); Trivy client 10 HIGH (axios 0.21.4), Trivy server 4 HIGH (body-parser, path-to-regexp). Plan: fix these on the replacement app and the reworked manifests rather than the placeholder. Suppress with written justification: CKV_K8S_43 (image digest; conflicts with SHA-tag promotion) and CKV_K8S_35 (secrets via ESO `envFrom`).
+- **Lint/test jobs** run `npm run lint --if-present` / `npm test --if-present`, so they pass trivially until the app defines scripts.
+- **SonarCloud:** the repo is public, so SonarCloud's free tier analyzes all branches and PRs. Organization `meetbrij`, project key `meetbrij_prod-grade-e2e-devsecops-pipeline`, token in the `SONAR_TOKEN` repo secret. Automatic Analysis is turned off (pipeline-based analysis only) and `qa` is added as a long-lived branch in the project settings. The quality gate blocks the pipeline only when `ENFORCE_SCANS` is `"true"`. The gate applies to new code, so the first-scan findings on the sample app (33 issues) do not fail it.
+
 ## Open Questions
 
-- SonarQube: self-hosted instance or SonarCloud?
 - QA hostname: confirm `qa-proj3-aigateway.bolarbrijesh.com` (or another name).

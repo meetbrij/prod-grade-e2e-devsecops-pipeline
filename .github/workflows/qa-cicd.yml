@@ -1,8 +1,8 @@
 name: QA CI/CD Pipeline
 
-# Built incrementally. Current stages: Gitleaks, then Checkov + Trivy FS in parallel.
-# Later steps: lint, tests, SonarQube, build, Docker build, Trivy image scan,
-# SBOM, ECR push, manifest update, EKS deploy.
+# Built incrementally. Current stages: Gitleaks, then Checkov + Trivy FS in
+# parallel, lint + tests, SonarCloud analysis, Docker build, then Trivy image scan
+# + SBOM in parallel. Later steps: ECR push, manifest update, EKS deploy.
 
 on:
   pull_request:
@@ -20,6 +20,8 @@ env:
   # While onboarding the scanners, findings are reported but do not fail the run.
   # Set to "true" to make Checkov and Trivy block the pipeline on findings.
   ENFORCE_SCANS: "false"
+  # App-agnostic image name; the tag is always the git commit SHA.
+  IMAGE_NAME: nodejs-app
 
 concurrency:
   group: qa-cicd-${{ github.ref }}
@@ -220,3 +222,163 @@ jobs:
           name: trivy-fs-server-report
           path: trivy-server.txt
           if-no-files-found: ignore
+
+  lint:
+    name: Lint (${{ matrix.app }})
+    runs-on: ubuntu-24.04
+    needs: [checkov-kubernetes, checkov-dockerfile, checkov-terraform, trivy-fs-client, trivy-fs-server]
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [client, server]
+    defaults:
+      run:
+        working-directory: ${{ matrix.app }}
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: ${{ matrix.app }}/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Passes trivially until the app defines a "lint" script.
+      - name: Run lint
+        run: npm run lint --if-present
+
+  test:
+    name: Test (${{ matrix.app }})
+    runs-on: ubuntu-24.04
+    needs: [checkov-kubernetes, checkov-dockerfile, checkov-terraform, trivy-fs-client, trivy-fs-server]
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [client, server]
+    defaults:
+      run:
+        working-directory: ${{ matrix.app }}
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: ${{ matrix.app }}/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Passes trivially until the app defines a "test" script.
+      - name: Run tests
+        run: npm test --if-present
+
+  sonarcloud:
+    name: SonarCloud Analysis
+    runs-on: ubuntu-24.04
+    needs: [lint, test]
+    steps:
+      - name: Checkout source code (full history for blame and new-code detection)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Project settings (keys, sources, exclusions) live in sonar-project.properties.
+      # The quality gate only blocks the run when ENFORCE_SCANS is "true";
+      # until then the gate result is visible in SonarCloud but does not fail the job.
+      - name: SonarCloud scan
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.host.url=https://sonarcloud.io
+            -Dsonar.qualitygate.wait=${{ env.ENFORCE_SCANS }}
+
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-24.04
+    needs: [lint, test, sonarcloud]
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      # The Dockerfile compiles the client, so no separate client build job is needed.
+      - name: Build image (tagged with git SHA)
+        run: docker build -t "$IMAGE_NAME:${{ github.sha }}" .
+
+      - name: Save image as archive
+        run: docker save -o image.tar "$IMAGE_NAME:${{ github.sha }}"
+
+      # The exact image built here is what gets scanned and later pushed (build once).
+      - name: Upload image archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: image
+          path: image.tar
+          retention-days: 1
+
+  trivy-image:
+    name: Trivy Image Scan
+    runs-on: ubuntu-24.04
+    needs: docker-build
+    steps:
+      - name: Download image archive
+        uses: actions/download-artifact@v4
+        with:
+          name: image
+
+      - name: Run Trivy image scan
+        run: |
+          EXIT=0; [ "$ENFORCE_SCANS" = "true" ] && EXIT=1
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -v "${{ github.workspace }}:/work" -w /work \
+            aquasec/trivy:0.57.1 image \
+            --cache-dir /tmp/trivy-cache \
+            --input image.tar \
+            --scanners vuln --severity HIGH,CRITICAL --exit-code "$EXIT" \
+            --format table --output trivy-image.txt
+          cat trivy-image.txt
+          { echo '```'; cat trivy-image.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-image-report
+          path: trivy-image.txt
+          if-no-files-found: ignore
+
+  sbom:
+    name: SBOM Generation
+    runs-on: ubuntu-24.04
+    needs: docker-build
+    steps:
+      - name: Download image archive
+        uses: actions/download-artifact@v4
+        with:
+          name: image
+
+      - name: Generate CycloneDX SBOM with Trivy
+        run: |
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -v "${{ github.workspace }}:/work" -w /work \
+            aquasec/trivy:0.57.1 image \
+            --cache-dir /tmp/trivy-cache \
+            --input image.tar \
+            --format cyclonedx --output sbom.cdx.json
+          echo "SBOM generated: $(wc -c < sbom.cdx.json) bytes" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.cdx.json
