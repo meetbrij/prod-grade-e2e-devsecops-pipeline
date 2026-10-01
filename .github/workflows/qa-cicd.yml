@@ -282,7 +282,7 @@ jobs:
         run: npm test --if-present
 
   sonarcloud:
-    name: SonarCloud Analysis
+    name: SonarCloud Analysis Report
     runs-on: ubuntu-24.04
     needs: [lint, test]
     steps:
@@ -304,7 +304,7 @@ jobs:
             -Dsonar.qualitygate.wait=${{ env.ENFORCE_SCANS }}
 
   docker-build:
-    name: Docker Build
+    name: Docker Build Image
     runs-on: ubuntu-24.04
     needs: [lint, test, sonarcloud]
     steps:
@@ -358,7 +358,7 @@ jobs:
           if-no-files-found: ignore
 
   sbom:
-    name: SBOM Generation
+    name: SBOM Report Generation
     runs-on: ubuntu-24.04
     needs: docker-build
     steps:
