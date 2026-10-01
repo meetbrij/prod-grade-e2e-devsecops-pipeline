@@ -51,17 +51,17 @@ API: `GET /api/users`, `POST /api/users`, `PUT /api/users/:id`, `DELETE /api/use
 | Amazon S3 (Terraform remote state) | Stores Terraform state remotely with versioning and encryption, and native S3 state locking (`use_lockfile`) so concurrent runs cannot corrupt state. Keeps state out of Git and shared between local runs and the pipeline. | Infra |
 | AWS | Cloud platform hosting everything in this project. | Infra |
 | AWS IAM and IRSA | Least-privilege roles for CI (separate QA and prod deployers) and for pods (for example External Secrets Operator) via service-account-to-role binding. | Infra |
-| Amazon VPC | Network isolation: subnets, routing and security groups for the cluster and load balancers. | Infra |
+| Amazon VPC and NAT gateway | Network isolation: public and private subnets, routing and security groups. A single NAT gateway gives private-subnet nodes outbound access (image pulls, AWS APIs) at lower cost than one per AZ. | Infra |
 | Amazon EKS | Managed Kubernetes control plane; AWS runs the API server and etcd, we manage node groups and workloads. | Infra |
 | Kubernetes | Orchestrates the app and database: Deployments, Services, Ingress, StatefulSets, namespaces and rolling updates for zero-downtime releases. | Infra |
 | Helm | Installs and versions cluster add-ons (AWS Load Balancer Controller, External Secrets Operator, kube-prometheus-stack, Loki, Tempo). | Infra |
-| AWS Load Balancer Controller and ALB | Turns Kubernetes Ingress resources into an internet-facing Application Load Balancer that terminates TLS and routes by host and path. | Infra |
-| Amazon Route 53 | DNS for the custom domain; an alias record points the domain at the ALB. | Infra |
-| AWS Certificate Manager (ACM) | Free, auto-renewing TLS certificates validated through DNS and attached to the ALB. | Infra |
-| Amazon EBS and CSI driver | Persistent volumes for MySQL, so data survives pod restarts and rescheduling. | Infra |
+| AWS Load Balancer Controller and ALB | Turns Kubernetes Ingress resources into an internet-facing Application Load Balancer that terminates TLS and routes by host and path. An Ingress group shares one ALB between `qa` and `prod` to save cost. | Infra |
+| Amazon Route 53 | DNS for the custom domain. An existing public hosted zone is reused (not created by Terraform); a one-time alias record per environment hostname points at the shared ALB (alias records to AWS resources cost nothing). | Infra |
+| AWS Certificate Manager (ACM) | Free, auto-renewing TLS certificate validated through DNS in the Route 53 zone. The ALB controller discovers it by hostname, so no certificate ARN is hardcoded in manifests. | Infra |
+| Amazon EBS and CSI driver | Persistent gp3 volumes for MySQL, provisioned by the EBS CSI driver add-on, so data survives pod restarts and rescheduling. | Infra |
 | MySQL (StatefulSet) | Stateful database with stable identity and storage, run on Kubernetes. | Infra |
 | AWS Secrets Manager | Central, encrypted store for database credentials so they are never committed or hand-created in the cluster. | Infra |
-| External Secrets Operator | Syncs Secrets Manager values into Kubernetes Secrets using IRSA, keeping secrets out of Git and rotating them automatically. | Infra |
+| External Secrets Operator | Syncs Secrets Manager values into Kubernetes Secrets using IRSA, with a separate service account and IAM role per environment namespace. Keeps secrets out of Git. | Infra |
 | Prometheus and Alertmanager | Collect cluster and app metrics and route alerts (CPU, memory, restarts, error rate). Installed through kube-prometheus-stack. | Infra |
 | Loki and Promtail | Centralized log storage and the per-node agent that ships pod logs to it, so debugging does not need `kubectl logs` on each pod. | Infra |
 | Tempo and OpenTelemetry | Distributed tracing: OpenTelemetry instruments the app and Tempo stores traces, showing where a slow request spends its time. | Infra |
@@ -72,55 +72,81 @@ API: `GET /api/users`, `POST /api/users`, `PUT /api/users/:id`, `DELETE /api/use
 
 ### Request flow and workloads
 
+One EKS cluster, one shared ALB, two environment namespaces.
+
 ```mermaid
 flowchart TD
-    U([User browser<br/>https://your-domain]) --> NC[Domain registrar<br/>NS delegation]
-    NC --> R53[Route 53<br/>hosted zone + alias A record]
-    R53 --> ALB[AWS ALB<br/>TLS termination, HTTP→HTTPS redirect]
-    ACM[ACM certificate<br/>DNS-validated, auto-renew] -. attached via Ingress annotation .-> ALB
-    ALBC[AWS Load Balancer Controller] -. provisions .-> ALB
+    U([User browser<br/>https://qa-proj3-aigateway.bolarbrijesh.com or https://proj3-aigateway.bolarbrijesh.com]) --> R53[Route 53<br/>existing public hosted zone]
+    R53 --> ALB[Shared AWS ALB<br/>TLS termination, HTTP to HTTPS redirect, host routing]
+    ACM[ACM certificate<br/>DNS-validated, discovered by hostname] -. attached .-> ALB
+    ALBC[AWS Load Balancer Controller] -. provisions and updates .-> ALB
 
-    subgraph EKS[EKS cluster]
-        ING[Ingress<br/>host + path routing]
-        SVC[Service: ClusterIP]
-        APP[App pod<br/>React + Node.js]
-        DB[(MySQL StatefulSet<br/>headless Service :3306)]
-        PV[(EBS PersistentVolume<br/>gp2, 10Gi, Retain)]
-        SC[StorageClass ebs-sc<br/>WaitForFirstConsumer]
-        ING --> SVC --> APP -->|SQL :3306| DB
-        DB --- PV
-        SC -. provisions .-> PV
+    subgraph EKS[Single EKS cluster]
+        subgraph QA[qa namespace]
+            INGQ[Ingress<br/>host: qa-proj3-aigateway]
+            SVCQ[Service: ClusterIP]
+            APPQ[App pod]
+            DBQ[(MySQL StatefulSet<br/>headless Service :3306)]
+            PVQ[(EBS gp3 volume)]
+            INGQ --> SVCQ --> APPQ -->|SQL :3306| DBQ
+            DBQ --- PVQ
+        end
+        subgraph PROD[prod namespace]
+            INGP[Ingress<br/>host: proj3-aigateway]
+            SVCP[Service: ClusterIP]
+            APPP[App pod]
+            DBP[(MySQL StatefulSet<br/>headless Service :3306)]
+            PVP[(EBS gp3 volume<br/>reclaim: Retain)]
+            INGP --> SVCP --> APPP -->|SQL :3306| DBP
+            DBP --- PVP
+        end
+        SC[StorageClass ebs-sc<br/>gp3, WaitForFirstConsumer<br/>EBS CSI driver]
+        SC -. provisions .-> PVQ
+        SC -. provisions .-> PVP
     end
 
-    ALB --> ING
+    ALB -->|Ingress group: one ALB for both| INGQ
+    ALB --> INGP
 ```
 
 ### Secrets management
 
+ESO runs once per cluster, but each environment namespace has its own service account, IAM role and secret. The QA role can read only `qa/mysql-secret`, and the prod role only `prod/mysql-secret`.
+
 ```mermaid
 flowchart LR
     subgraph AWS[AWS]
-        SM[(Secrets Manager<br/>qa/mysql-secret)]
-        IAM[IAM role for ESO<br/>secretsmanager:GetSecretValue]
+        SMQ[(Secrets Manager<br/>qa/mysql-secret)]
+        SMP[(Secrets Manager<br/>prod/mysql-secret)]
+        IAMQ[IAM role: ESO qa<br/>read qa/mysql-secret only]
+        IAMP[IAM role: ESO prod<br/>read prod/mysql-secret only]
+        SMQ --- IAMQ
+        SMP --- IAMP
     end
 
-    subgraph K8S[EKS cluster]
-        SA[ServiceAccount<br/>IRSA annotation]
-        ESO[External Secrets Operator]
-        SS[SecretStore]
-        ES[ExternalSecret]
-        KS[K8s Secret<br/>mysql-secret]
-        APP[App pod]
-        MYSQL[MySQL pod]
-        SA --> ESO --> SS --> ES --> KS
-        KS -->|envFrom| APP
-        KS -->|envFrom| MYSQL
+    subgraph K8S[Single EKS cluster]
+        ESO[External Secrets Operator<br/>external-secrets namespace]
+        subgraph QA[qa namespace]
+            SAQ[ServiceAccount<br/>IRSA annotation]
+            SSQ[SecretStore] --> ESQ[ExternalSecret] --> KSQ[K8s Secret mysql-secret]
+            KSQ -->|envFrom| QAPODS[App pod and MySQL pod]
+            SAQ --> SSQ
+        end
+        subgraph PROD[prod namespace]
+            SAP[ServiceAccount<br/>IRSA annotation]
+            SSP[SecretStore] --> ESP[ExternalSecret] --> KSP[K8s Secret mysql-secret]
+            KSP -->|envFrom| PRODPODS[App pod and MySQL pod]
+            SAP --> SSP
+        end
+        ESO --> SSQ
+        ESO --> SSP
     end
 
-    SM --> IAM
-    IAM -. AssumeRoleWithWebIdentity .-> SA
-    ESO -->|GetSecretValue| SM
+    IAMQ -. AssumeRoleWithWebIdentity .-> SAQ
+    IAMP -. AssumeRoleWithWebIdentity .-> SAP
 ```
+
+Terraform creates the Secrets Manager secret and its IAM role but not the password values, which are set out-of-band so they never land in Terraform state. Images are pulled from ECR using the node group's IAM role, so no image pull secret exists.
 
 ### Observability
 
@@ -229,26 +255,54 @@ Two environments, `qa` and `prod`, run as separate namespaces on a single EKS cl
 flowchart LR
     GH[GitHub Actions] -->|OIDC| RA[IAM Role A<br/>QA deployer]
     GH -->|OIDC + approval| RB[IAM Role B<br/>PROD deployer]
+    RA -->|push images| ECR[(Amazon ECR)]
+    RB -->|retag sha to prod-sha| ECR
     subgraph EKS[Single EKS cluster]
         NQ[qa namespace]
         NP[prod namespace]
     end
     RA -->|access entry: qa only| NQ
     RB -->|access entry: prod only| NP
+    ECR -. image pull via node role .-> EKS
 ```
 
 The QA and prod pipelines never share an IAM role. The QA role has no permissions on the `prod` namespace. Because both environments share one cluster, they also share the control plane and nodes; if stronger isolation is needed later, prod can move to its own cluster without changing the pipeline design.
+
+## Infrastructure as Code (Terraform)
+
+AWS resources, cluster add-ons and namespaces are provisioned with Terraform. The application manifests in `k8-manifests/` are deployed by the pipeline. QA is built first, and prod reuses the same environment module with different inputs.
+
+```mermaid
+flowchart TD
+    B[bootstrap<br/>S3 state bucket, created once] --> P
+    P[platform stack<br/>VPC + single NAT, EKS, EBS CSI, ECR,<br/>GitHub OIDC provider, ACM certificate,<br/>ALB controller, ESO, observability] --> Q
+    P --> R
+    Q[envs/qa<br/>app-env module: namespace, ESO role,<br/>secret shell, deploy role + access entry]
+    R[envs/prod<br/>same module, prod inputs]
+    Z[(Existing Route 53 hosted zone<br/>referenced as data source)] -.-> P
+```
+
+Each stack has its own remote state in S3 (with native locking), so qa and prod can be applied or destroyed independently of each other and of the shared platform.
+
+### Manual DNS step (one-time per hostname)
+
+The ALB is created by the AWS Load Balancer Controller when the first Ingress is applied, so its address is only known after the first deploy. After that:
+
+1. Find the ALB DNS name: `kubectl get ingress -n qa` (the `ADDRESS` column; the shared ALB serves both environments).
+2. In the Route 53 hosted zone for `bolarbrijesh.com`, create an **A record with Alias enabled** for each hostname (`qa-proj3-aigateway.bolarbrijesh.com`, `proj3-aigateway.bolarbrijesh.com`), pointing at that ALB (region `ap-south-1`).
+
+The ALB keeps its address across deployments as long as the Ingress group exists. If the ALB is deleted and recreated (for example all Ingresses removed or the group renamed), update the alias records.
 
 ## Extending to More Environments (dev, ppd)
 
 Only `qa` and `prod` are in scope today. The pipelines are meant to be driven by per-environment configuration so adding `dev` or `ppd` does not require restructuring:
 
-1. **Namespace and manifests:** copy `k8-manifests/qa/` to `k8-manifests/<env>/` and adjust namespace, replicas, resources, host and cert ARN.
-2. **Environment config:** add the environment's values (namespace, cluster name (same cluster today), IAM role ARN, host, ACM cert ARN, ECR repo) as GitHub Environment variables, or as a matrix entry in the workflow, instead of hardcoding them.
+1. **Namespace and manifests:** copy `k8-manifests/qa/` to `k8-manifests/<env>/` and adjust namespace, replicas, resources and host. The shared ALB Ingress group and certificate discovery mean no per-environment ALB or certificate ARN is needed, as long as the ACM certificate covers the new hostname.
+2. **Environment config:** add the environment's values (namespace, cluster name (same cluster today), IAM role ARN, host, ECR repo) as GitHub Environment variables, or as a matrix entry in the workflow, instead of hardcoding them.
 3. **Branch mapping:** decide which branch deploys to it (for example `feature/*` to `dev`, `qa` to `qa`, a pre-merge state of `main` to `ppd`) and add that trigger to the workflow's environment matrix.
 4. **AWS access:** extend the non-prod IAM deployer role's trust policy and namespace permissions to include the new namespace. Never give it access to `prod`.
 5. **Cluster add-ons:** create the namespace with its resource quota and network policies, plus its own SecretStore/ExternalSecret and Secrets Manager entry (`<env>/mysql-secret`).
-6. **DNS/TLS:** add a `<env>.<domain>` record in Route 53 and issue or reuse an ACM certificate.
+6. **DNS/TLS:** add the new hostname to the ACM certificate's SANs and create a one-time alias record to the shared ALB in the Route 53 zone (see Manual DNS step).
 7. **Approvals:** add a GitHub Environment with the required reviewers if the environment should be gated.
 
 ## Repository Layout
@@ -261,8 +315,12 @@ sonar-project.properties SonarQube project config
 k8-manifests/
   qa/                   App Deployment, Service, Ingress (qa namespace)
   prod/                 Same for prod namespace
-.github/workflows/      (planned) QA and prod pipelines
+.github/workflows/      QA and prod pipelines (GitHub Actions)
 terraform/              (planned) AWS infrastructure
+  bootstrap/            S3 state bucket
+  platform/             VPC, EKS, ECR, add-ons, DNS/TLS
+  modules/app-env/      Per-environment resources
+  envs/qa, envs/prod/   Environment instantiations
 ```
 
 ## Local Development

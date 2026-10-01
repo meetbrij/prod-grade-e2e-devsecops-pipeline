@@ -1,13 +1,10 @@
 # Trigger Test-3
 name: Production CD Pipeline
 
+# Disabled until the QA pipeline and infrastructure are complete.
+# Manual trigger only; the push trigger will be restored when prod is rebuilt.
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - k8-manifests/prod/app-deployment.yaml
-      - .github/workflows/prod-cd.yaml
+  workflow_dispatch:
 
 permissions:
   contents: write
