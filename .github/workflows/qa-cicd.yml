@@ -25,7 +25,7 @@ jobs:
     name: Gitleaks Secret Scan
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout source code (full history)
+      - name: Checkout source code (including full history)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -44,7 +44,7 @@ jobs:
             --report-path=/repo/gitleaks-report.json \
             --verbose
 
-      - name: Upload Gitleaks report
+      - name: Upload Gitleaks Report
         if: always()
         uses: actions/upload-artifact@v4
         with:
