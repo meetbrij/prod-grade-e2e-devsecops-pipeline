@@ -1,8 +1,8 @@
 name: QA CI/CD Pipeline
 
-# Built incrementally. Current stage: step 1 (Gitleaks secret scan).
-# Later steps: Checkov, Trivy FS, lint, tests, SonarQube, build, Docker build,
-# Trivy image scan, SBOM, ECR push, manifest update, EKS deploy.
+# Built incrementally. Current stages: Gitleaks, then Checkov + Trivy FS in parallel.
+# Later steps: lint, tests, SonarQube, build, Docker build, Trivy image scan,
+# SBOM, ECR push, manifest update, EKS deploy.
 
 on:
   pull_request:
@@ -15,6 +15,11 @@ on:
 
 permissions:
   contents: read
+
+env:
+  # While onboarding the scanners, findings are reported but do not fail the run.
+  # Set to "true" to make Checkov and Trivy block the pipeline on findings.
+  ENFORCE_SCANS: "false"
 
 concurrency:
   group: qa-cicd-${{ github.ref }}
@@ -50,4 +55,168 @@ jobs:
         with:
           name: gitleaks-report
           path: gitleaks-report.json
+          if-no-files-found: ignore
+
+  checkov-kubernetes:
+    name: Checkov Kubernetes Scan
+    runs-on: ubuntu-24.04
+    needs: gitleaks-scan
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Checkov
+        run: pip install "checkov~=3.2"
+
+      - name: Run Checkov on Kubernetes manifests
+        run: |
+          SOFT=""; [ "$ENFORCE_SCANS" != "true" ] && SOFT="--soft-fail"
+          mkdir -p reports
+          checkov -d k8-manifests --framework kubernetes $SOFT \
+            --output cli --output json --output-file-path reports/
+          cat reports/results_cli.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkov-kubernetes-report
+          path: reports/
+          if-no-files-found: ignore
+
+  checkov-dockerfile:
+    name: Checkov Dockerfile Scan
+    runs-on: ubuntu-24.04
+    needs: gitleaks-scan
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Checkov
+        run: pip install "checkov~=3.2"
+
+      - name: Run Checkov on Dockerfile
+        run: |
+          SOFT=""; [ "$ENFORCE_SCANS" != "true" ] && SOFT="--soft-fail"
+          mkdir -p reports
+          checkov -f Dockerfile --framework dockerfile $SOFT \
+            --output cli --output json --output-file-path reports/
+          cat reports/results_cli.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkov-dockerfile-report
+          path: reports/
+          if-no-files-found: ignore
+
+  checkov-terraform:
+    name: Checkov Terraform Scan
+    runs-on: ubuntu-24.04
+    needs: gitleaks-scan
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Detect Terraform files
+        id: tf
+        run: |
+          if [ -n "$(find . -name '*.tf' -not -path './.git/*' | head -1)" ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No Terraform files yet; skipping." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Setup Python
+        if: steps.tf.outputs.found == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Checkov
+        if: steps.tf.outputs.found == 'true'
+        run: pip install "checkov~=3.2"
+
+      - name: Run Checkov on Terraform
+        if: steps.tf.outputs.found == 'true'
+        run: |
+          SOFT=""; [ "$ENFORCE_SCANS" != "true" ] && SOFT="--soft-fail"
+          mkdir -p reports
+          checkov -d terraform --framework terraform $SOFT \
+            --output cli --output json --output-file-path reports/
+          cat reports/results_cli.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload report
+        if: always() && steps.tf.outputs.found == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkov-terraform-report
+          path: reports/
+          if-no-files-found: ignore
+
+  trivy-fs-client:
+    name: Trivy FS Scan (client)
+    runs-on: ubuntu-24.04
+    needs: gitleaks-scan
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy filesystem scan
+        run: |
+          EXIT=0; [ "$ENFORCE_SCANS" = "true" ] && EXIT=1
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -v "${{ github.workspace }}:/src" -w /src \
+            aquasec/trivy:0.57.1 fs \
+            --cache-dir /tmp/trivy-cache \
+            --scanners vuln --severity HIGH,CRITICAL --exit-code "$EXIT" \
+            --format table --output trivy-client.txt client
+          cat trivy-client.txt
+          { echo '```'; cat trivy-client.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-fs-client-report
+          path: trivy-client.txt
+          if-no-files-found: ignore
+
+  trivy-fs-server:
+    name: Trivy FS Scan (server)
+    runs-on: ubuntu-24.04
+    needs: gitleaks-scan
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy filesystem scan
+        run: |
+          EXIT=0; [ "$ENFORCE_SCANS" = "true" ] && EXIT=1
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -v "${{ github.workspace }}:/src" -w /src \
+            aquasec/trivy:0.57.1 fs \
+            --cache-dir /tmp/trivy-cache \
+            --scanners vuln --severity HIGH,CRITICAL --exit-code "$EXIT" \
+            --format table --output trivy-server.txt server
+          cat trivy-server.txt
+          { echo '```'; cat trivy-server.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-fs-server-report
+          path: trivy-server.txt
           if-no-files-found: ignore
