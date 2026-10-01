@@ -1,0 +1,3 @@
+# Copy to terraform.tfvars (gitignored) to override defaults.
+# region             = "ap-south-1"
+# node_instance_type = "t3a.medium"

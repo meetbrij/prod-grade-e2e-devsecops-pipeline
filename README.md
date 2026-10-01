@@ -275,8 +275,9 @@ AWS resources, cluster add-ons and namespaces are provisioned with Terraform. Th
 ```mermaid
 flowchart TD
     B[bootstrap<br/>S3 state bucket, created once] --> P
-    P[platform stack<br/>VPC + single NAT, EKS, EBS CSI, ECR,<br/>GitHub OIDC provider, ACM certificate,<br/>ALB controller, ESO, observability] --> Q
-    P --> R
+    P[platform stack<br/>VPC + single NAT, EKS 1.36, EBS CSI,<br/>ECR, GitHub OIDC provider, ACM certificate] --> A
+    A[addons stack<br/>ALB controller, External Secrets Operator,<br/>StorageClass, observability] --> Q
+    A --> R
     Q[envs/qa<br/>app-env module: namespace, ESO role,<br/>secret shell, deploy role + access entry]
     R[envs/prod<br/>same module, prod inputs]
     Z[(Existing Route 53 hosted zone<br/>referenced as data source)] -.-> P
@@ -316,9 +317,10 @@ k8-manifests/
   qa/                   App Deployment, Service, Ingress (qa namespace)
   prod/                 Same for prod namespace
 .github/workflows/      QA and prod pipelines (GitHub Actions)
-terraform/              (planned) AWS infrastructure
+terraform/              AWS infrastructure (see terraform/README.md)
   bootstrap/            S3 state bucket
-  platform/             VPC, EKS, ECR, add-ons, DNS/TLS
+  platform/             VPC, EKS, ECR, OIDC provider, ACM certificate
+  addons/               ALB controller, ESO, StorageClass (planned)
   modules/app-env/      Per-environment resources
   envs/qa, envs/prod/   Environment instantiations
 ```
