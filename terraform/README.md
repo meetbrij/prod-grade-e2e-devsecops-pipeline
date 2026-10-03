@@ -4,7 +4,7 @@ Infrastructure for the project, applied manually for now (later: plan on PR, app
 
 | Stack | Purpose | State |
 |-------|---------|-------|
-| `bootstrap/` | S3 bucket that stores state for all other stacks. Run once. | local file (gitignored) |
+| `bootstrap/` | S3 bucket that stores state for all other stacks. Run once. | S3, key `bootstrap/terraform.tfstate` (migrated from a local file) |
 | `platform/` | VPC (single NAT), EKS 1.36, EBS CSI driver, ECR, GitHub OIDC provider, ACM certificate. **Applied.** | S3, key `platform/terraform.tfstate` |
 | `addons/` | AWS Load Balancer Controller (with IAM role), External Secrets Operator, two gp3 StorageClasses. Written and validated, not yet applied. | S3, key `addons/terraform.tfstate` |
 | `modules/app-env` | Reusable per-environment module (namespace, quota, secret shell, ESO identity, CI deploy role) | n/a |
@@ -167,6 +167,18 @@ In the last pod listing, the `NAMESPACE` column is the logical view and the `NOD
 - AWS credentials for an admin identity (a named profile or SSO). Never put keys in files:
   `export AWS_PROFILE=<your-profile>` and confirm with `aws sts get-caller-identity`.
 
+## Migrate the bootstrap state into S3 (one-time)
+
+The bootstrap stack originally kept its state in a local file, which exists only on one machine. To move it into the bucket it created:
+
+```bash
+cd terraform/bootstrap
+cp backend.hcl.example backend.hcl       # set bucket = <state_bucket>
+terraform init -backend-config=backend.hcl -migrate-state
+```
+
+Answer `yes` when asked to copy the existing state. Afterwards `terraform plan` should show no changes, and the local `terraform.tfstate` is no longer used (keep it until you have confirmed the plan is clean, then delete it).
+
 ## Apply
 
 ```bash
@@ -310,6 +322,33 @@ unset ROOT APP
 
 and add the repo variable `AWS_ROLE_TO_ASSUME_PROD` with the value of `terraform output deploy_role_arn`.
 The prod credentials are different from QA's because each run generates new random passwords.
+
+## Pause and resume (without destroying)
+
+Scaling the node group to zero stops the EC2 instances, which is the biggest hourly cost you can switch off.
+Everything else stays: the EKS control plane, the NAT gateway, the shared ALB and the EBS volumes (so the databases keep their data).
+
+```bash
+# find the node group name
+aws eks list-nodegroups --cluster-name devsecops-eks --region ap-south-1
+
+# pause
+aws eks update-nodegroup-config --cluster-name devsecops-eks --region ap-south-1 \
+  --nodegroup-name <node-group-name> --scaling-config minSize=0,maxSize=3,desiredSize=0
+
+# resume
+aws eks update-nodegroup-config --cluster-name devsecops-eks --region ap-south-1 \
+  --nodegroup-name <node-group-name> --scaling-config minSize=2,maxSize=3,desiredSize=2
+```
+
+While paused, pods are Pending, the ALB has no healthy targets and both sites answer 503. After resuming, nodes take a few
+minutes to join and the pods start again by themselves. While paused, `terraform plan` on `platform` shows the node group
+minimum as a change; resuming (or `terraform apply`) puts it back.
+
+Roughly what keeps costing while paused: EKS control plane (about 73 USD/month), NAT gateway (about 35 USD plus data),
+ALB (about 18 USD), EBS volumes and logs (a few USD). That is around two thirds of the running cost, so pausing saves
+only the nodes. For a longer break, destroy instead (below); everything rebuilds from Terraform and the pipeline, but the
+databases start empty. Figures are estimates; check the AWS pricing calculator.
 
 ## Destroy: what is and is not touched
 
