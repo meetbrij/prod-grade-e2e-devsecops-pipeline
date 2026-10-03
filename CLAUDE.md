@@ -94,13 +94,13 @@ Local: run MySQL separately, then `cd server && npm start`; build the frontend w
 3. SonarCloud analysis + Quality Gate
 4. Client build → Docker build (tagged with **git commit SHA**)
 5. Parallel: Trivy image scan, SBOM generation (CycloneDX via Trivy), both run against the image archive built in step 4 so the scanned image is the one pushed
-6. Push to ECR
-7. Update image tag in `k8-manifests/qa/` and commit back (GitOps)
-8. Deploy to the EKS QA namespace (`kubectl apply`, `kubectl rollout status`)
-9. Manual QA / smoke tests / sign-off
+6. Push to ECR (push to `qa` only, never on PRs; assumes the QA role via OIDC using the `AWS_ROLE_TO_ASSUME_QA` repo variable; skips the push if the SHA tag already exists because tags are immutable)
+7. Deploy to the EKS QA namespace: render `k8-manifests/qa` in a temp copy with the registry and SHA tag, `kubectl apply -k`, then `kubectl rollout status` for MySQL and the app. The registry host (account ID) is never written to the repo.
+8. After a successful rollout, commit the deployed tag (`newTag` in `k8-manifests/qa/kustomization.yaml`) back to `qa` as `github-actions[bot]` with `[skip ci]`, so the repo records what is deployed and the prod pipeline can read which QA image to promote.
+9. Manual QA / smoke tests / sign-off. After the first deploy, create the Route 53 alias records manually.
 
 **Prod pipeline** (trigger: merge to `main`), deliberately minimal, **build once, promote the artifact**:
-retag the QA image (`<sha>` → `prod-<sha>`) in ECR → update `k8-manifests/prod/` tag → deploy to the EKS prod namespace → verify rollout. No rebuild, no re-scan.
+read the QA-built SHA from `k8-manifests/qa/kustomization.yaml` (`newTag`) → retag the image (`<sha>` → `prod-<sha>`) in ECR → update `k8-manifests/prod/` tag → deploy to the EKS prod namespace → verify rollout. No rebuild, no re-scan.
 
 Rules to preserve:
 - Pipelines live in `.github/workflows/`; branch conditions must prevent `qa` pushes from triggering a prod deploy.

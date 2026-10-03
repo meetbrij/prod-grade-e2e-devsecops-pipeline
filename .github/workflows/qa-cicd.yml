@@ -2,7 +2,7 @@ name: QA CI/CD Pipeline
 
 # Built incrementally. Current stages: Gitleaks, then Checkov + Trivy FS in
 # parallel, lint + tests, SonarCloud analysis, Docker build, then Trivy image scan
-# + SBOM in parallel. Later steps: ECR push, manifest update, EKS deploy.
+# + SBOM in parallel, then (push to qa only) ECR push and EKS deploy.
 
 on:
   pull_request:
@@ -22,10 +22,14 @@ env:
   ENFORCE_SCANS: "false"
   # App-agnostic image name; the tag is always the git commit SHA.
   IMAGE_NAME: nodejs-app
+  AWS_REGION: ap-south-1
+  EKS_CLUSTER_NAME: devsecops-eks
+  K8S_NAMESPACE: qa
 
 concurrency:
   group: qa-cicd-${{ github.ref }}
-  cancel-in-progress: true
+  # Superseded PR runs can be cancelled; a push to qa may be mid-deploy and must finish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   gitleaks-scan:
@@ -382,3 +386,118 @@ jobs:
         with:
           name: sbom
           path: sbom.cdx.json
+
+  push-to-ecr:
+    name: Push Image to ECR
+    runs-on: ubuntu-24.04
+    # Only the merged result on qa is published and deployed; PR runs stop at the scans.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/qa'
+    needs: [trivy-image, sbom]
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Download image archive
+        uses: actions/download-artifact@v4
+        with:
+          name: image
+
+      - name: Configure AWS credentials (GitHub OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME_QA }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # ECR tags are immutable, so a re-run of the same commit must not push again.
+      - name: Push image tagged with the git SHA
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          TAG="${{ github.sha }}"
+          FOUND=$(aws ecr batch-get-image --repository-name "$IMAGE_NAME" \
+            --image-ids imageTag="$TAG" --query 'images[0].imageId.imageTag' --output text)
+          if [ "$FOUND" = "$TAG" ]; then
+            echo "Image $IMAGE_NAME:$TAG is already in ECR; skipping push." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          docker load -i image.tar
+          docker tag "$IMAGE_NAME:$TAG" "$REGISTRY/$IMAGE_NAME:$TAG"
+          docker push "$REGISTRY/$IMAGE_NAME:$TAG"
+          echo "Pushed $IMAGE_NAME:$TAG to ECR." >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-qa:
+    name: Deploy to EKS (qa)
+    runs-on: ubuntu-24.04
+    if: github.event_name == 'push' && github.ref == 'refs/heads/qa'
+    needs: push-to-ecr
+    # Never run two deploys at once, and never cancel one halfway.
+    concurrency:
+      group: deploy-qa
+      cancel-in-progress: false
+    permissions:
+      contents: write # commit the deployed tag back to the repo
+      id-token: write
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (GitHub OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME_QA }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Look up the ECR registry
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Connect to the cluster
+        run: aws eks update-kubeconfig --name "$EKS_CLUSTER_NAME" --region "$AWS_REGION"
+
+      # Render with the registry and tag in a temporary copy. The registry host
+      # (which contains the account ID) is never written to the repository.
+      - name: Deploy manifests
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          TAG="${{ github.sha }}"
+          WORK="$(mktemp -d)"
+          cp -R k8-manifests/qa/. "$WORK"
+          sed -i "s#newName: .*#newName: $REGISTRY/$IMAGE_NAME#; s#newTag: .*#newTag: \"$TAG\"#" "$WORK/kustomization.yaml"
+          kubectl apply -k "$WORK"
+
+      - name: Wait for the database and the app to be ready
+        run: |
+          kubectl rollout status statefulset/mysql -n "$K8S_NAMESPACE" --timeout=300s
+          kubectl rollout status deployment/nodejs-app -n "$K8S_NAMESPACE" --timeout=300s
+
+      - name: Show where the app is exposed
+        run: |
+          {
+            echo "### qa deployed: \`${{ github.sha }}\`"
+            echo '```'
+            kubectl get pods,ingress -n "$K8S_NAMESPACE"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Record what is deployed so the repo matches the cluster. The prod pipeline reads
+      # this tag to know which QA-built image to promote. The bot's push does not retrigger
+      # this workflow.
+      - name: Commit the deployed image tag
+        run: |
+          TAG="${{ github.sha }}"
+          sed -i "s#newTag: .*#newTag: \"$TAG\"#" k8-manifests/qa/kustomization.yaml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add k8-manifests/qa/kustomization.yaml
+          if git diff --cached --quiet; then
+            echo "Tag already recorded."
+          else
+            git commit -m "ci: record deployed qa image $TAG [skip ci]"
+            git pull --rebase origin qa
+            git push origin HEAD:qa
+          fi
