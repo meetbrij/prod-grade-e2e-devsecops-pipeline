@@ -220,14 +220,13 @@ flowchart TD
     C1 & C2 & C3 & C4 & C5 --> D2[Server lint]
     C1 & C2 & C3 & C4 & C5 --> D3[Client tests]
     D1 & D2 & D3 --> E[SonarCloud<br/>quality gate]
-    E --> F[Client build]
-    F --> G[Docker build<br/>tag = git SHA]
+    E --> G[Docker build<br/>compiles the client, tag = git SHA]
     G --> H1[Trivy image scan]
     G --> H2[SBOM generation]
-    H1 & H2 --> I[Push to Amazon ECR]
-    I --> J[Update image tag in QA manifest]
-    J --> K[Deploy to EKS qa namespace<br/>via OIDC role]
-    K --> L{Manual QA<br/>and sign-off}
+    H1 & H2 --> I[Push to Amazon ECR<br/>push to qa only, via OIDC role]
+    I --> K[Deploy to EKS qa namespace<br/>kubectl apply, wait for rollout]
+    K --> J[Commit deployed tag back to qa<br/>kustomization.yaml newTag]
+    J --> L{Manual QA<br/>and sign-off}
     L -->|bugs found| M[bugfix branch] --> A
     L -->|approved| N([PR: qa → main])
 ```
