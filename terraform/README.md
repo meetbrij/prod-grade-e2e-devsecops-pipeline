@@ -243,6 +243,31 @@ Creates, per environment:
 | IAM role `devsecops-eks-qa-github-deploy` | Assumed by GitHub Actions on the `qa` branch. It can describe the cluster and push to ECR. |
 | EKS access entry for that role | Edit rights inside the `qa` namespace only, nothing else in the cluster. |
 
+### Secret values: set once, never overwrite
+
+> **Run the "set secret values" command exactly once per environment, and read the `--secret-id` before pressing Enter.**
+> The QA command uses `qa/mysql-secret` and the prod command uses `prod/mysql-secret`; they differ by one word.
+>
+> MySQL reads `MYSQL_PASSWORD` and `MYSQL_ROOT_PASSWORD` only the first time it starts on an empty volume. Changing the
+> secret afterwards does **not** change the database passwords. External Secrets copies the new value into the cluster
+> within an hour, and the next app pod to start then fails with `Access denied` while MySQL still has the old password.
+> (This happened once in QA; Secrets Manager had kept the previous version, which made the recovery easy.)
+
+**If a secret was overwritten by mistake**, move the previous version back (version IDs come from
+`aws secretsmanager list-secret-version-ids --secret-id <env>/mysql-secret`):
+
+```bash
+aws secretsmanager update-secret-version-stage --region ap-south-1 --secret-id <env>/mysql-secret \
+  --version-stage AWSCURRENT --move-to-version-id <previous-version-id> --remove-from-version-id <current-version-id>
+kubectl annotate externalsecret mysql-external-secret -n <env> force-sync=$(date +%s) --overwrite
+kubectl rollout restart deployment/nodejs-app -n <env>
+```
+
+**To change a database password on purpose (rotation)**, change it in both places, in this order:
+1. In MySQL: `ALTER USER 'appuser'@'%' IDENTIFIED BY '<new>';` (and the root password if needed), run inside the pod.
+2. In Secrets Manager: store the new value (and the updated `DATABASE_URL`).
+3. Force the sync and restart the app as above.
+
 ### Set the QA secret values (once, manually)
 
 Terraform creates the empty secret; you fill it in. This generates random passwords and stores them without
