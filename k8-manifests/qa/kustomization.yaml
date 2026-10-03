@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - secretstore.yaml
+  - external-secret.yaml
+  - mysql-svc.yaml
+  - mysql-statefulset.yaml
+  - app-deployment.yaml
+  - app-svc.yaml
+  - app-ingress.yaml
+# The registry host and tag are set at deploy time:
+#   kustomize edit set image nodejs-app=<registry>/nodejs-app:<git-sha>
+# so no account ID is stored in Git. The default below only renders; it is not deployable.
+images:
+  - name: nodejs-app
+    newName: nodejs-app
+    newTag: unset

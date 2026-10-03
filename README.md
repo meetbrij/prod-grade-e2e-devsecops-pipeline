@@ -314,8 +314,8 @@ server/                 Node.js + Express backend (config, models, controllers, 
 Dockerfile              Builds client, bundles into server image; runs as non-root
 sonar-project.properties SonarCloud project config
 k8-manifests/
-  qa/                   App Deployment, Service, Ingress (qa namespace)
-  prod/                 Same for prod namespace
+  qa/                   App, MySQL, SecretStore/ExternalSecret, Ingress (qa namespace), kustomization.yaml
+  prod/                 Same for prod namespace (still to be rewritten)
 .github/workflows/      QA and prod pipelines (GitHub Actions)
 terraform/              AWS infrastructure (see terraform/README.md)
   bootstrap/            S3 state bucket
