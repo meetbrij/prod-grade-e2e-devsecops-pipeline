@@ -1,18 +1,25 @@
+# One ALB is shared by qa and prod through the Ingress group below (host-based routing).
+# No certificate ARN: the ALB controller finds the ACM certificate that covers the
+# hostname listed under spec.tls.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: app-ingress
   namespace: prod
   annotations:
+    alb.ingress.kubernetes.io/group.name: devsecops-shared
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
-    alb.ingress.kubernetes.io/ssl-redirect: '443'
-    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:ap-south-1:551322107788:certificate/8f6cd000-86e2-409e-9986-f5cbd335d5f8
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/healthcheck-path: /
 spec:
   ingressClassName: alb
+  tls:
+    - hosts:
+        - proj3-aigateway.bolarbrijesh.com
   rules:
-    - host: adityajaiswal.com
+    - host: proj3-aigateway.bolarbrijesh.com
       http:
         paths:
           - path: /
@@ -21,4 +28,4 @@ spec:
               service:
                 name: nodejs-service
                 port:
-                  number: 5000
+                  number: 80

@@ -8,8 +8,8 @@ Infrastructure for the project, applied manually for now (later: plan on PR, app
 | `platform/` | VPC (single NAT), EKS 1.36, EBS CSI driver, ECR, GitHub OIDC provider, ACM certificate. **Applied.** | S3, key `platform/terraform.tfstate` |
 | `addons/` | AWS Load Balancer Controller (with IAM role), External Secrets Operator, two gp3 StorageClasses. Written and validated, not yet applied. | S3, key `addons/terraform.tfstate` |
 | `modules/app-env` | Reusable per-environment module (namespace, quota, secret shell, ESO identity, CI deploy role) | n/a |
-| `envs/qa` | Instantiates the module for qa. Written and validated, not yet applied. | S3, key `envs/qa/terraform.tfstate` |
-| `envs/prod` (planned) | Same module with prod inputs | S3, key `envs/prod/terraform.tfstate` |
+| `envs/qa` | Instantiates the module for qa. **Applied.** | S3, key `envs/qa/terraform.tfstate` |
+| `envs/prod` | Same module with prod inputs. Written and validated, not yet applied. | S3, key `envs/prod/terraform.tfstate` |
 
 ## Understanding the EKS infrastructure
 
@@ -258,6 +258,33 @@ unset ROOT APP
 Then add the role ARN as a GitHub **variable** (not a secret; it is not sensitive) so the workflow can assume it:
 Settings, Secrets and variables, Actions, Variables, new variable `AWS_ROLE_TO_ASSUME_QA` with the value of
 `terraform output deploy_role_arn`.
+
+### Apply the prod environment
+
+Same module as QA, with prod inputs (retag-only ECR permissions, an `environment:prod` trust subject, a 7-day secret recovery window).
+
+Before the first apply, create the **GitHub Environment** the role trusts: repository Settings, Environments, New environment, name it exactly `prod`, add yourself under Required reviewers, and restrict deployment branches to `main`. Then:
+
+```bash
+cd terraform/envs/prod
+cp backend.hcl.example backend.hcl             # set bucket = <state_bucket>
+cp terraform.tfvars.example terraform.tfvars   # set state_bucket = <state_bucket>
+terraform init -backend-config=backend.hcl
+terraform plan -out=tfplan
+terraform apply tfplan
+```
+
+Then set the prod secret values (same command as QA with `prod/mysql-secret`):
+
+```bash
+ROOT=$(openssl rand -base64 24 | tr -d '/+=') ; APP=$(openssl rand -base64 24 | tr -d '/+=')
+aws secretsmanager put-secret-value --region ap-south-1 --secret-id prod/mysql-secret --secret-string \
+"{\"MYSQL_ROOT_PASSWORD\":\"$ROOT\",\"MYSQL_DATABASE\":\"appdb\",\"MYSQL_USER\":\"appuser\",\"MYSQL_PASSWORD\":\"$APP\",\"DATABASE_URL\":\"mysql://appuser:$APP@mysql:3306/appdb\"}"
+unset ROOT APP
+```
+
+and add the repo variable `AWS_ROLE_TO_ASSUME_PROD` with the value of `terraform output deploy_role_arn`.
+The prod credentials are different from QA's because each run generates new random passwords.
 
 ## Destroy: what is and is not touched
 

@@ -1,0 +1,15 @@
+# Headless Service: gives the StatefulSet pod a stable DNS name (mysql-0.mysql.prod.svc)
+# and lets clients reach it by the name "mysql".
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: prod
+spec:
+  clusterIP: None
+  selector:
+    app: mysql
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: 3306
