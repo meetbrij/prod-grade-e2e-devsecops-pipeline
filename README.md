@@ -233,14 +233,19 @@ flowchart TD
 
 ### Production pipeline (on merge to `main`)
 
+Continuous delivery only: nothing is rebuilt, rescanned or retested.
+
 ```mermaid
 flowchart LR
-    A([Merge to main]) --> B[Approval gate<br/>GitHub Environment]
-    B --> C[Retag QA image in ECR<br/>sha → prod-sha]
-    C --> E[Update prod manifest]
-    E --> F[Deploy to EKS prod<br/>via prod OIDC role]
-    F --> G([Rollout verified])
+    A([Merge to main]) --> B[Read QA-built SHA<br/>from qa kustomization.yaml]
+    B --> C{{Approval gate<br/>GitHub Environment prod}}
+    C --> D[Retag image in ECR<br/>sha to prod-sha, same digest]
+    D --> E[Deploy to EKS prod namespace<br/>via prod OIDC role]
+    E --> F[Wait for rollout]
+    F --> G([Live in production])
 ```
+
+The approval screen shows exactly which QA image is being promoted. The prod role can only retag in ECR and deploy to the `prod` namespace.
 
 Images live in a private Amazon ECR repository in the same region as EKS. QA builds are tagged with the git SHA; promotion retags the same image as `prod-<sha>` (no rebuild, no rescan).
 
