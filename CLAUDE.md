@@ -46,15 +46,15 @@ Layout: `client/` (`src/`, `public/`), `server/` (`server.js` entrypoint, `confi
 
 Local: run MySQL separately, then `cd server && npm start`; build the frontend with `cd client && npm run build`.
 
-### Existing k8-manifests (observed)
-- Deployment `nodejs-app` (1 replica, port 5000), Service `nodejs-service` (ClusterIP 5000), ALB Ingress with ACM cert and `ssl-redirect: 443`. qa and prod differ only in namespace, image tag, cert ARN and host.
-- Image is a Docker Hub-style reference with `imagePullSecrets: regcred`; this must move to ECR (node IAM/IRSA pulls from ECR, so no pull secret is needed).
-- DB config comes from Secret `mysql-secret` (keys `MYSQL_DATABASE`, `MYSQL_USER`, `MYSQL_PASSWORD`, `DATABASE_URL`); `DB_HOST=mysql`.
-- Missing: MySQL StatefulSet/headless Service/StorageClass, ExternalSecret/SecretStore, resource requests/limits, probes, securityContext, Namespaces, NetworkPolicies.
+### k8-manifests status
+- `k8-manifests/qa/` is rewritten for the new platform: `secretstore.yaml`, `external-secret.yaml` (pulls `qa/mysql-secret` into the Secret `mysql-secret`), `mysql-svc.yaml` (headless) and `mysql-statefulset.yaml` (5Gi on `ebs-sc`), `app-deployment.yaml`, `app-svc.yaml` (ClusterIP 80 to container port `http`/5000), `app-ingress.yaml` (shared ALB group `devsecops-shared`, host `qa-proj3-aigateway.bolarbrijesh.com`, no certificate ARN), and `kustomization.yaml`. All render and pass a server-side dry run.
+- Image handling: the Deployment uses the bare name `nodejs-app`; `kustomization.yaml` `images:` rewrites it. The deploy step must run `kustomize edit set image nodejs-app=<registry>/nodejs-app:<git-sha>` (registry host and tag set at deploy time, so no account ID is committed). The committed default tag `unset` is intentionally not deployable.
+- The app pieces cannot be applied until an image exists in ECR (pushed by the pipeline). The MySQL and secret pieces can be applied manually first to prove the chain.
+- `k8-manifests/prod/` is still the old course version (Docker Hub image, pull secret, hardcoded certificate ARN, stale host). Rewrite it from `qa/` when prod is built.
+- Still missing everywhere: NetworkPolicies, PodDisruptionBudgets, a dedicated app health endpoint. The MySQL pod and the app do not set `readOnlyRootFilesystem` (the app needs a writable `HOME`, MySQL writes under `/var/run`); revisit when the app is replaced.
+- The deploy role has namespace-scoped `AmazonEKSEditPolicy`; confirm it can create `SecretStore`/`ExternalSecret` on the first pipeline deploy. If not, move those two objects into the `app-env` Terraform module.
 
 ### Code issues noticed (not yet fixed; raise before changing)
-- `qa/app-svc.yaml` has no `namespace` (prod does), so the Service would land in `default`.
-- Manifests contain a real AWS account ID, ACM ARNs and domains; parameterize them.
 - `server.js` requires `body-parser` but it is not in `server/package.json` (works only via Express's transitive dep).
 - `server/app.js`, `routes/users.js`, `routes/userRoutes.js`, `controllers/`, `models/` appear to duplicate logic inlined in `server.js`; confirm which is live. `db.js` falls back to `root`/`password` defaults.
 - Dockerfile is not multi-stage (build tooling stays in the final image) and uses `npm install` instead of `npm ci`.
