@@ -146,7 +146,7 @@ data "aws_iam_policy_document" "deploy_assume" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repository}:${var.github_subject}"]
+      values   = ["repo:${var.github_repository_claim}:${var.github_subject}"]
     }
   }
 }

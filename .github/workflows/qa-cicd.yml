@@ -402,23 +402,6 @@ jobs:
         with:
           name: image
 
-      # TEMPORARY: prints the claims GitHub puts in the OIDC token (not the token itself)
-      # and the role name from the repo variable, to debug a failed role assumption.
-      # The AWS account ID is deliberately not printed because this log is public.
-      - name: Debug OIDC claims (temporary)
-        run: |
-          RESP=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com")
-          echo "$RESP" | python3 -c '
-          import sys, json, base64
-          t = json.load(sys.stdin)["value"].split(".")[1]
-          t += "=" * (-len(t) % 4)
-          c = json.loads(base64.urlsafe_b64decode(t))
-          for k in ("sub", "aud", "repository", "ref", "event_name", "environment", "job_workflow_ref"):
-              print(k, "=", c.get(k))
-          '
-          ROLE="${{ vars.AWS_ROLE_TO_ASSUME_QA }}"
-          echo "role variable: length=${#ROLE}, role name=${ROLE##*/}"
-
       - name: Configure AWS credentials (GitHub OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:

@@ -23,8 +23,8 @@ variable "github_oidc_provider_arn" {
   type        = string
 }
 
-variable "github_repository" {
-  description = "GitHub repository allowed to assume the deploy role, as owner/name."
+variable "github_repository_claim" {
+  description = "The repository exactly as GitHub writes it in the OIDC subject claim, including the immutable owner and repository IDs: owner@ownerId/name@repoId."
   type        = string
 }
 
