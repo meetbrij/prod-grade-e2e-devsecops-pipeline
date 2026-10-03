@@ -1,0 +1,6 @@
+# Copy to backend.hcl (gitignored) and fill in the bucket created by this stack.
+bucket       = "<state-bucket-name>"
+key          = "bootstrap/terraform.tfstate"
+region       = "ap-south-1"
+encrypt      = true
+use_lockfile = true
