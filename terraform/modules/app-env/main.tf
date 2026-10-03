@@ -187,6 +187,10 @@ resource "aws_eks_access_entry" "deploy" {
   cluster_name  = var.cluster_name
   principal_arn = aws_iam_role.deploy.arn
   type          = "STANDARD"
+
+  # Maps the role to a Kubernetes group so the Role below can add permissions
+  # that the AWS-managed Edit policy does not include.
+  kubernetes_groups = ["${var.env_name}-deployers"]
 }
 
 resource "aws_eks_access_policy_association" "deploy" {
@@ -200,4 +204,39 @@ resource "aws_eks_access_policy_association" "deploy" {
   }
 
   depends_on = [aws_eks_access_entry.deploy]
+}
+
+# AmazonEKSEditPolicy does not cover custom resources. The pipeline applies the External
+# Secrets objects (SecretStore, ExternalSecret) from k8-manifests, so grant exactly those,
+# in this namespace only.
+resource "kubernetes_role_v1" "deploy_external_secrets" {
+  metadata {
+    name      = "deploy-external-secrets"
+    namespace = kubernetes_namespace_v1.this.metadata[0].name
+  }
+
+  rule {
+    api_groups = ["external-secrets.io"]
+    resources  = ["externalsecrets", "secretstores"]
+    verbs      = ["get", "list", "watch", "create", "update", "patch", "delete"]
+  }
+}
+
+resource "kubernetes_role_binding_v1" "deploy_external_secrets" {
+  metadata {
+    name      = "deploy-external-secrets"
+    namespace = kubernetes_namespace_v1.this.metadata[0].name
+  }
+
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "Role"
+    name      = kubernetes_role_v1.deploy_external_secrets.metadata[0].name
+  }
+
+  subject {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "Group"
+    name      = "${var.env_name}-deployers"
+  }
 }
