@@ -18,10 +18,10 @@ variable "platform_state_key" {
   default = "platform/terraform.tfstate"
 }
 
-variable "github_repository" {
-  description = "GitHub repository (owner/name) whose workflows may deploy to qa."
+variable "github_repository_claim" {
+  description = "Repository as it appears in GitHub's OIDC subject claim: owner@ownerId/name@repoId. GitHub's immutable IDs stop a renamed or recreated repo from inheriting this role. Find it in the 'sub' claim of a workflow run."
   type        = string
-  default     = "meetbrij/prod-grade-e2e-devsecops-pipeline"
+  default     = "meetbrij@4499354/prod-grade-e2e-devsecops-pipeline@1397427060"
 }
 
 variable "ecr_repository_name" {

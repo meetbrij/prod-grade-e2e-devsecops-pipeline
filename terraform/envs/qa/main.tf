@@ -47,7 +47,7 @@ module "app_env" {
   oidc_provider_arn        = data.terraform_remote_state.platform.outputs.oidc_provider_arn
   oidc_provider            = data.terraform_remote_state.platform.outputs.oidc_provider
   github_oidc_provider_arn = data.terraform_remote_state.platform.outputs.github_oidc_provider_arn
-  github_repository        = var.github_repository
+  github_repository_claim  = var.github_repository_claim
 
   # QA deploys run from the qa branch.
   github_subject = "ref:refs/heads/qa"
