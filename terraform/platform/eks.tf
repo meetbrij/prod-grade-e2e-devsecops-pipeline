@@ -12,6 +12,12 @@ module "eks" {
   endpoint_public_access       = true
   endpoint_public_access_cidrs = var.cluster_endpoint_public_access_cidrs
 
+  # Stay on standard support. The default (EXTENDED) would move the cluster into
+  # paid extended support when this version leaves standard support.
+  upgrade_policy = {
+    support_type = "STANDARD"
+  }
+
   # IRSA: lets pods (ALB controller, ESO, EBS CSI) assume IAM roles.
   enable_irsa = true
 
