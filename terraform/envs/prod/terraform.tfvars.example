@@ -1,0 +1,2 @@
+# Copy to terraform.tfvars (gitignored). state_bucket is required.
+# state_bucket = "<state-bucket-name>"

@@ -41,11 +41,12 @@ client/public/bundle.js
 client/public/bundle.js.map
 
 # --- Terraform ---
+# .terraform.lock.hcl is committed on purpose (pins provider versions).
 .terraform/
-.terraform.lock.hcl
 *.tfstate
 *.tfstate.*
 *.tfvars
+backend.hcl
 !*.tfvars.example
 crash.log
 crash.*.log
