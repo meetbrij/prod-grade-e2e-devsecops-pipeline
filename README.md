@@ -320,8 +320,8 @@ k8-manifests/
 terraform/              AWS infrastructure (see terraform/README.md)
   bootstrap/            S3 state bucket
   platform/             VPC, EKS, ECR, OIDC provider, ACM certificate
-  addons/               ALB controller, ESO, StorageClass (planned)
-  modules/app-env/      Per-environment resources
+  addons/               ALB controller, ESO, StorageClasses
+  modules/app-env/      Per-environment module: namespace, quota, secret shell, ESO identity, CI deploy role
   envs/qa, envs/prod/   Environment instantiations
 ```
 

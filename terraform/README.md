@@ -6,8 +6,10 @@ Infrastructure for the project, applied manually for now (later: plan on PR, app
 |-------|---------|-------|
 | `bootstrap/` | S3 bucket that stores state for all other stacks. Run once. | local file (gitignored) |
 | `platform/` | VPC (single NAT), EKS 1.36, EBS CSI driver, ECR, GitHub OIDC provider, ACM certificate. **Applied.** | S3, key `platform/terraform.tfstate` |
-| `addons/` (planned) | AWS Load Balancer Controller, External Secrets Operator, StorageClass | S3 |
-| `envs/qa`, `envs/prod` (planned) | Per-environment namespace, ESO role, secret shell, CI deploy role | S3, one key per env |
+| `addons/` | AWS Load Balancer Controller (with IAM role), External Secrets Operator, two gp3 StorageClasses. Written and validated, not yet applied. | S3, key `addons/terraform.tfstate` |
+| `modules/app-env` | Reusable per-environment module (namespace, quota, secret shell, ESO identity, CI deploy role) | n/a |
+| `envs/qa` | Instantiates the module for qa. Written and validated, not yet applied. | S3, key `envs/qa/terraform.tfstate` |
+| `envs/prod` (planned) | Same module with prod inputs | S3, key `envs/prod/terraform.tfstate` |
 
 ## Understanding the EKS infrastructure
 
@@ -189,6 +191,74 @@ aws eks update-kubeconfig --name devsecops-eks --region ap-south-1
 kubectl get nodes
 ```
 
+### Apply the add-ons
+
+Run this after the platform stack. If you pulled the support-policy change (`upgrade_policy = STANDARD`), apply `platform` again first; it is an in-place change.
+
+```bash
+cd terraform/addons
+cp backend.hcl.example backend.hcl        # set bucket = <state_bucket>
+cp terraform.tfvars.example terraform.tfvars   # set state_bucket = <state_bucket>
+terraform init -backend-config=backend.hcl
+terraform plan -out=tfplan
+terraform apply tfplan
+```
+
+This stack needs the cluster to be reachable (it uses your AWS credentials to get a short-lived token). It installs:
+
+| Add-on | Namespace | Notes |
+|--------|-----------|-------|
+| AWS Load Balancer Controller | `kube-system` | IRSA role and the upstream IAM policy; 1 replica |
+| External Secrets Operator | `external-secrets` | No AWS role of its own; per-environment roles come with `envs/*` |
+| StorageClass `ebs-sc` | cluster-wide | gp3, encrypted, reclaim `Delete` (qa) |
+| StorageClass `ebs-sc-retain` | cluster-wide | gp3, encrypted, reclaim `Retain` (prod) |
+
+Verify:
+
+```bash
+kubectl get pods -n kube-system -l app.kubernetes.io/name=aws-load-balancer-controller
+kubectl get pods -n external-secrets
+kubectl get storageclass
+```
+
+### Apply the QA environment
+
+```bash
+cd terraform/envs/qa
+cp backend.hcl.example backend.hcl             # set bucket = <state_bucket>
+cp terraform.tfvars.example terraform.tfvars   # set state_bucket = <state_bucket>
+terraform init -backend-config=backend.hcl
+terraform plan -out=tfplan
+terraform apply tfplan
+```
+
+Creates, per environment:
+
+| Resource | Purpose |
+|----------|---------|
+| Namespace `qa` | Logical home for the environment. Pod Security: `baseline` enforced, `restricted` warns. |
+| ResourceQuota and LimitRange | Caps the namespace's total CPU, memory, pods and storage so qa cannot starve prod. The LimitRange gives containers default requests and limits. |
+| Secrets Manager secret `qa/mysql-secret` | An empty container. The values are set by you (below), never by Terraform. |
+| IAM role `devsecops-eks-qa-eso` and service account `qa/eso` | Lets External Secrets Operator read only `qa/mysql-secret`. |
+| IAM role `devsecops-eks-qa-github-deploy` | Assumed by GitHub Actions on the `qa` branch. It can describe the cluster and push to ECR. |
+| EKS access entry for that role | Edit rights inside the `qa` namespace only, nothing else in the cluster. |
+
+### Set the QA secret values (once, manually)
+
+Terraform creates the empty secret; you fill it in. This generates random passwords and stores them without
+printing them or writing them anywhere permanent:
+
+```bash
+ROOT=$(openssl rand -base64 24 | tr -d '/+=') ; APP=$(openssl rand -base64 24 | tr -d '/+=')
+aws secretsmanager put-secret-value --region ap-south-1 --secret-id qa/mysql-secret --secret-string \
+"{\"MYSQL_ROOT_PASSWORD\":\"$ROOT\",\"MYSQL_DATABASE\":\"appdb\",\"MYSQL_USER\":\"appuser\",\"MYSQL_PASSWORD\":\"$APP\",\"DATABASE_URL\":\"mysql://appuser:$APP@mysql:3306/appdb\"}"
+unset ROOT APP
+```
+
+Then add the role ARN as a GitHub **variable** (not a secret; it is not sensitive) so the workflow can assume it:
+Settings, Secrets and variables, Actions, Variables, new variable `AWS_ROLE_TO_ASSUME_QA` with the value of
+`terraform output deploy_role_arn`.
+
 ## Destroy: what is and is not touched
 
 `terraform destroy` removes only resources recorded in that stack's state, that is, resources Terraform created.
@@ -203,7 +273,7 @@ Deliberately NOT managed (read-only data sources, so they survive destroy):
 Safeguards:
 - The state bucket has `prevent_destroy = true`.
 - Check what a destroy will do before running it: `terraform plan -destroy`.
-- Destroy in reverse order: `envs/*`, `addons`, `platform`. Delete Kubernetes Ingresses first
+- Destroy in reverse order: `envs/*`, `addons`, `platform`. Run `kubectl delete ingress -A --all` first, then wait for the ALB to disappear. Delete Kubernetes Ingresses first
   (`kubectl delete ingress -A --all`), otherwise ALBs created by the controller block VPC deletion.
 
 ## Before the first apply
