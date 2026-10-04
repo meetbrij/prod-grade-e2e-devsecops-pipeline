@@ -63,7 +63,7 @@ API: `GET /api/users`, `POST /api/users`, `PUT /api/users/:id`, `DELETE /api/use
 | AWS Secrets Manager | Central, encrypted store for database credentials so they are never committed or hand-created in the cluster. | Infra |
 | External Secrets Operator | Syncs Secrets Manager values into Kubernetes Secrets using IRSA, with a separate service account and IAM role per environment namespace. Keeps secrets out of Git. | Infra |
 | Prometheus and Alertmanager | Collect cluster and app metrics and route alerts (CPU, memory, restarts, error rate). Installed through kube-prometheus-stack. | Infra |
-| Loki and Promtail | Centralized log storage and the per-node agent that ships pod logs to it, so debugging does not need `kubectl logs` on each pod. | Infra |
+| Loki and Grafana Alloy | Centralized log storage (15 day retention) and the collector that ships every pod's logs to it, so debugging does not need `kubectl logs` on each pod. Alloy replaces Promtail, which is end-of-life. | Infra |
 | Tempo and OpenTelemetry | Distributed tracing: OpenTelemetry instruments the app and Tempo stores traces, showing where a slow request spends its time. | Infra |
 | Grafana | Single dashboard for metrics, logs and traces with alerting, so on-call engineers use one view. | Infra |
 | AWS CloudTrail | Audit log of every role assumption and API call, including pipeline deployments. | Infra |
@@ -154,7 +154,7 @@ Terraform creates the Secrets Manager secret and its IAM role but not the passwo
 flowchart TD
     W[Kubernetes workloads<br/>metrics, logs, traces]
     W --> KPS[kube-prometheus-stack]
-    W --> PT[Promtail<br/>DaemonSet]
+    W --> PT[Grafana Alloy<br/>log collector]
     W --> OT[OpenTelemetry SDK]
     KPS --> P[(Prometheus)]
     PT --> L[(Loki)]

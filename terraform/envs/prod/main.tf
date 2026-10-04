@@ -25,10 +25,6 @@ data "aws_eks_cluster" "this" {
   name = data.terraform_remote_state.platform.outputs.cluster_name
 }
 
-data "aws_eks_cluster_auth" "this" {
-  name = data.terraform_remote_state.platform.outputs.cluster_name
-}
-
 data "aws_ecr_repository" "app" {
   name = var.ecr_repository_name
 }
@@ -36,7 +32,12 @@ data "aws_ecr_repository" "app" {
 provider "kubernetes" {
   host                   = data.aws_eks_cluster.this.endpoint
   cluster_ca_certificate = base64decode(data.aws_eks_cluster.this.certificate_authority[0].data)
-  token                  = data.aws_eks_cluster_auth.this.token
+  # Short-lived credentials are fetched on every call (a fixed token expires after 15 minutes).
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    args        = ["eks", "get-token", "--cluster-name", data.terraform_remote_state.platform.outputs.cluster_name, "--region", var.region]
+  }
 }
 
 module "app_env" {
