@@ -20,3 +20,12 @@ output "deploy_role_arn" {
   description = "Role the GitHub workflow assumes for this environment."
   value       = aws_iam_role.deploy.arn
 }
+
+output "app_service_account" {
+  description = "Service account the app Deployment should use (null when Bedrock access is disabled)."
+  value       = local.bedrock_enabled ? kubernetes_service_account_v1.app[0].metadata[0].name : null
+}
+
+output "app_role_arn" {
+  value = local.bedrock_enabled ? aws_iam_role.app[0].arn : null
+}

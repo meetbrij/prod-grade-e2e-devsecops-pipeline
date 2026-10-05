@@ -62,6 +62,13 @@ module "app_env" {
     "ecr:PutImage",
   ]
 
+  # The KYC app calls Claude through India-only inference profiles (inference stays in
+  # ap-south-1 and ap-south-2). Haiku is the default; Sonnet is used for the accuracy comparison.
+  bedrock_inference_profile_ids = [
+    "in.anthropic.claude-haiku-4-5-20251001-v1:0",
+    "in.anthropic.claude-sonnet-5",
+  ]
+
   # Keep a deleted prod secret recoverable for a week.
   secret_recovery_window_days = 7
 

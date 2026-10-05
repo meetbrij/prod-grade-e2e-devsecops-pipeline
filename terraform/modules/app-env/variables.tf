@@ -86,3 +86,15 @@ variable "container_defaults" {
     limit_memory   = "512Mi"
   }
 }
+
+variable "bedrock_inference_profile_ids" {
+  description = "Bedrock inference profile IDs the app may invoke (for example in.anthropic.claude-haiku-4-5-20251001-v1:0). Empty disables the Bedrock role and service account."
+  type        = list(string)
+  default     = []
+}
+
+variable "bedrock_model_regions" {
+  description = "Regions the inference profiles route to. The India-only 'in.' profiles use ap-south-1 and ap-south-2."
+  type        = list(string)
+  default     = ["ap-south-1", "ap-south-2"]
+}

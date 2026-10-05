@@ -40,6 +40,14 @@ coverage/
 client/public/bundle.js
 client/public/bundle.js.map
 
+# --- Python ---
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+
 # --- Terraform ---
 # .terraform.lock.hcl is committed on purpose (pins provider versions).
 .terraform/
