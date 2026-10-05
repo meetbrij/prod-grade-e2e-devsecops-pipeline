@@ -43,6 +43,7 @@ def evaluate(
     scores: list[FieldScore] = []
     latencies: list[int] = []
     tokens_in = tokens_out = errors = 0
+    error_messages: list[str] = []
     documents = manifest["documents"][:limit] if limit else manifest["documents"]
 
     for doc in documents:
@@ -57,11 +58,15 @@ def evaluate(
             latencies.append(result.latency_ms)
             tokens_in += result.input_tokens
             tokens_out += result.output_tokens
-        except ExtractionError:
+        except ExtractionError as exc:
             # A failed call counts as every field wrong and flagged: nothing is auto-accepted.
+            # The message names the AWS error code only; it never contains document data.
             errors += 1
             got = {}
-        progress(f"{doc['file']}: {'error' if not got else 'ok'}")
+            error_messages.append(str(exc))
+            progress(f"{doc['file']}: ERROR {exc}")
+        else:
+            progress(f"{doc['file']}: ok")
 
         for name, expected in doc["fields"].items():
             field = got.get(name)
@@ -81,6 +86,7 @@ def evaluate(
 
     timing = {
         "errors": errors,
+        "error_messages": sorted(set(error_messages)),
         "avg_latency_ms": round(sum(latencies) / len(latencies)) if latencies else None,
         "input_tokens": tokens_in,
         "output_tokens": tokens_out,
@@ -188,6 +194,12 @@ def main() -> None:
         }
         (args.out / f"{alias}.json").write_text(json.dumps(run, indent=2) + "\n")
         runs[alias] = run
+        if timing["errors"] and timing["errors"] == run["summary"]["documents"]:
+            raise SystemExit(
+                f"\nEvery call for '{alias}' failed ({'; '.join(timing['error_messages'])}). "
+                "No accuracy was measured. Check AWS credentials, Bedrock permissions "
+                "and the region."
+            )
         s = run["summary"]
         print(
             f"  field accuracy {_pct(s['field_accuracy'])}, "

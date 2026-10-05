@@ -9,9 +9,11 @@ import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import date
+from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Response, UploadFile
+from fastapi.responses import FileResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel, Field
 from sqlalchemy.engine import Engine
@@ -24,6 +26,18 @@ from kyc.schemas import FIELD_SPECS, DocumentType, format_problem
 from kyc.telemetry import setup_tracing
 
 log = logging.getLogger("kyc")
+
+STATIC_DIR = Path(__file__).parent / "static"
+# The review page may load only its own script and stylesheet and talk only to this server.
+UI_HEADERS = {
+    "Content-Security-Policy": (
+        "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; "
+        "img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+    ),
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "Cache-Control": "no-store",
+}
 
 
 class FieldOut(BaseModel):
@@ -120,7 +134,22 @@ def create_app(
 
     @app.get("/", include_in_schema=False)
     def root() -> dict[str, str]:
-        return {"service": "kyc-document-intelligence", "docs": "/docs"}
+        return {"service": "kyc-document-intelligence", "docs": "/docs", "ui": "/ui"}
+
+    # The review page itself carries no data; every API call it makes needs the API key.
+    @app.get("/ui", include_in_schema=False)
+    def ui_page() -> FileResponse:
+        return FileResponse(STATIC_DIR / "ui.html", media_type="text/html", headers=UI_HEADERS)
+
+    @app.get("/ui/app.js", include_in_schema=False)
+    def ui_script() -> FileResponse:
+        return FileResponse(
+            STATIC_DIR / "app.js", media_type="application/javascript", headers=UI_HEADERS
+        )
+
+    @app.get("/ui/style.css", include_in_schema=False)
+    def ui_style() -> FileResponse:
+        return FileResponse(STATIC_DIR / "style.css", media_type="text/css", headers=UI_HEADERS)
 
     @app.get("/healthz")
     def healthz(response: Response) -> dict[str, str]:

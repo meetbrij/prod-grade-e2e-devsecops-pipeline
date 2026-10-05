@@ -175,6 +175,23 @@ def test_failed_calls_count_as_wrong_and_flagged():
     assert failed and all(not s.correct and s.flagged for s in failed)
 
 
+def test_error_messages_are_reported_and_shown_in_progress():
+    manifest = _manifest()
+    lines: list[str] = []
+    _, timing = evaluate(
+        LookupExtractor(manifest, GOLDEN, fail_on={"id_01.png"}),
+        manifest,
+        GOLDEN,
+        limit=2,
+        progress=lines.append,
+    )
+    assert timing["error_messages"] == ["bedrock call failed: ThrottlingException"]
+    assert any(
+        "id_01.png: ERROR bedrock call failed: ThrottlingException" in line for line in lines
+    )
+    assert "id_02.png: ok" in lines
+
+
 def test_limit_restricts_documents():
     manifest = _manifest()
     scores, _ = evaluate(LookupExtractor(manifest, GOLDEN), manifest, GOLDEN, limit=2)

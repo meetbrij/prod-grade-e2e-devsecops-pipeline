@@ -21,6 +21,23 @@ It calls the same `BedrockExtractor` the service uses, through the India-only `i
 profiles, and writes `eval/results/<model>.json` (every field, expected vs actual, confidence)
 and `eval/results/RESULTS.md` (the comparison table).
 
+## If every call fails
+
+The runner prints the AWS error code next to each failed document (it never prints document
+data) and stops with a message if all calls fail. The usual causes:
+
+| Error | Meaning | Fix |
+|---|---|---|
+| `ThrottlingException` on the first call | The account's Bedrock quota for that model is 0, the default for new accounts | Request an increase in Service Quotas (below) |
+| `AccessDeniedException` | The IAM identity may not invoke the model or inference profile | Allow `bedrock:InvokeModel` on the profile and the models behind it |
+| `ValidationException` | Bedrock rejected the request (wrong model ID, bad parameters) | Check the model ID with `aws bedrock list-inference-profiles --region ap-south-1` |
+| `NoCredentialsError` | No AWS credentials in this shell | Set `AWS_PROFILE` and try `aws sts get-caller-identity` |
+
+Check quotas with: `aws service-quotas list-service-quotas --service-code bedrock --region ap-south-1`
+and look for "Cross-region model inference requests per minute for Anthropic Claude Haiku 4.5"
+and the matching "tokens per minute" quota. The India-only `in.` profiles use the
+"Cross-region" quotas, not the "Global cross-region" ones.
+
 ## What is measured
 
 | Metric | Meaning |
