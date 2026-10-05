@@ -1,25 +1,23 @@
-FROM node:20-alpine
+# KYC Document Intelligence service.
+# Build context is the repository root (COPY paths start with app/), which is what the
+# pipeline's `docker build .` uses.
 
-WORKDIR /usr/src/app/client
-COPY client/package*.json ./
-RUN npm install
-COPY client/ ./
-RUN npm run build
+FROM python:3.12-slim AS build
+WORKDIR /build
+COPY app/requirements.txt .
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
-WORKDIR /usr/src/app/server
-COPY server/package*.json ./
-RUN npm install --omit=dev
-COPY server/ ./
-
-RUN mkdir -p ./public && cp -R /usr/src/app/client/public/* ./public/
-
-ENV NODE_ENV=production
-
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-RUN chown -R appuser:appgroup /usr/src/app
-
-USER appuser
-
+FROM python:3.12-slim
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PORT=5000
+RUN groupadd --system --gid 10001 app \
+ && useradd --system --uid 10001 --gid app --no-create-home --shell /usr/sbin/nologin app
+WORKDIR /srv
+COPY --from=build /install /usr/local
+COPY app/kyc ./kyc
+USER 10001
 EXPOSE 5000
-
-CMD ["npm", "start"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s \
+  CMD ["python", "-c", "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/healthz' % os.environ.get('PORT', '5000'), timeout=3)"]
+CMD ["sh", "-c", "exec uvicorn kyc.main:get_app --factory --host 0.0.0.0 --port ${PORT}"]
