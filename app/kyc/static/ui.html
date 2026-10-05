@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>KYC Document Intelligence</title>
+  <link rel="stylesheet" href="/ui/style.css">
+</head>
+<body>
+  <header>
+    <h1>KYC Document Intelligence</h1>
+    <p class="sub">Upload an ID document or proof of address. Fields below the confidence threshold are flagged for review.</p>
+  </header>
+
+  <main>
+    <section class="panel" aria-labelledby="upload-title">
+      <h2 id="upload-title">Upload a document</h2>
+      <form id="upload-form">
+        <label>API key <span class="hint">(if the service requires one; kept in this tab only)</span>
+          <input id="api-key" type="password" autocomplete="off" placeholder="X-API-Key">
+        </label>
+        <label>Document type
+          <select id="document-type">
+            <option value="id_document">ID document</option>
+            <option value="proof_of_address">Proof of address</option>
+          </select>
+        </label>
+        <label>File <span class="hint">(PNG, JPEG, WEBP, GIF or PDF, up to 4 MB)</span>
+          <input id="file" type="file" accept="image/png,image/jpeg,image/webp,image/gif,application/pdf" required>
+        </label>
+        <button id="upload-button" type="submit">Extract fields</button>
+      </form>
+      <p id="status" role="status" aria-live="polite"></p>
+      <div id="result"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="queue-title">
+      <h2 id="queue-title">Review queue</h2>
+      <p class="hint">Documents with at least one flagged field. Confirm or correct each flagged value.</p>
+      <button id="load-queue" type="button">Load review queue</button>
+      <div id="queue"></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Uploaded files are processed in memory and are not stored. Only the extracted fields are kept.
+       <a href="/docs">API documentation</a></p>
+  </footer>
+  <script src="/ui/app.js"></script>
+</body>
+</html>
