@@ -35,9 +35,9 @@ variable "az_count" {
 }
 
 variable "node_instance_type" {
-  description = "Instance type for the managed node group."
+  description = "Instance type for the managed node group. t3a.large (2 vCPU, 8 GiB) leaves room for the observability stack next to qa and prod."
   type        = string
-  default     = "t3a.medium"
+  default     = "t3a.large"
 }
 
 variable "node_min_size" {

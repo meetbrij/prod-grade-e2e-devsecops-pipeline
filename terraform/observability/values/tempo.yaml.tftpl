@@ -1,0 +1,18 @@
+# Single-instance Tempo: local storage on an EBS volume, OTLP receivers on 4317 (gRPC) and 4318 (HTTP).
+fullnameOverride: tempo
+
+tempo:
+  retention: ${traces_retention}
+  reportingEnabled: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+
+persistence:
+  enabled: true
+  size: ${tempo_storage_size}
+  storageClassName: ${storage_class}
+  enableStatefulSetAutoDeletePVC: false

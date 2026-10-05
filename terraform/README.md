@@ -8,6 +8,7 @@ Infrastructure for the project, applied manually for now (later: plan on PR, app
 | `platform/` | VPC (single NAT), EKS 1.36, EBS CSI driver, ECR, GitHub OIDC provider, ACM certificate. **Applied.** | S3, key `platform/terraform.tfstate` |
 | `addons/` | AWS Load Balancer Controller (with IAM role), External Secrets Operator, two gp3 StorageClasses. Written and validated, not yet applied. | S3, key `addons/terraform.tfstate` |
 | `modules/app-env` | Reusable per-environment module (namespace, quota, secret shell, ESO identity, CI deploy role) | n/a |
+| `observability/` | Prometheus + Alertmanager + Grafana, Loki (logs), Tempo (traces), Grafana Alloy (log collector), all in the `monitoring` namespace. Written and validated, not yet applied. | S3, key `observability/terraform.tfstate` |
 | `envs/qa` | Instantiates the module for qa. **Applied.** | S3, key `envs/qa/terraform.tfstate` |
 | `envs/prod` | Same module with prod inputs. Written and validated, not yet applied. | S3, key `envs/prod/terraform.tfstate` |
 
@@ -20,7 +21,7 @@ Three views of the same system. Solid boxes exist today (applied by the `platfor
 | Term | What it is | In this project |
 |------|------------|-----------------|
 | **EKS control plane** | The Kubernetes "brain" (API server, etcd, scheduler). Run and patched by AWS, in an AWS-owned network, not inside your VPC. You never see its servers. | One control plane for the cluster `devsecops-eks` |
-| **Node** | One EC2 virtual machine that runs your containers. Billed as a normal EC2 instance. | 2 nodes, type `t3a.medium`, one per availability zone |
+| **Node** | One EC2 virtual machine that runs your containers. Billed as a normal EC2 instance. | 2 nodes, type `t3a.large`, one per availability zone |
 | **Managed node group** | A named set of identical nodes managed by AWS through an Auto Scaling group. It keeps the count between a minimum and a maximum and replaces failed nodes. It is a grouping, not a separate machine. | One group, `default-...`: min 2, desired 2, max 3 |
 | **Pod** | The smallest unit Kubernetes runs: one or more containers sharing a network address. Every pod runs on exactly one node. | System pods now; app and MySQL pods later |
 | **Namespace** | A logical folder inside the cluster used to separate and name things (and to apply permissions and quotas). It is **not** a machine or a network. A namespace's pods can run on any node, and one node runs pods from many namespaces. | `kube-system` now; `qa`, `prod`, `external-secrets` planned |
@@ -49,7 +50,7 @@ flowchart TB
                     ALBA["ALB nodes, later"]
                 end
                 subgraph PRIVA["Private subnet 10.0.0.0/20"]
-                    N1["Node 1<br/>EC2 t3a.medium"]
+                    N1["Node 1<br/>EC2 t3a.large"]
                 end
             end
 
@@ -58,7 +59,7 @@ flowchart TB
                     ALBB["ALB nodes, later"]
                 end
                 subgraph PRIVB["Private subnet 10.0.16.0/20"]
-                    N2["Node 2<br/>EC2 t3a.medium"]
+                    N2["Node 2<br/>EC2 t3a.large"]
                 end
             end
         end
@@ -164,6 +165,7 @@ In the last pod listing, the `NAMESPACE` column is the logical view and the `NOD
 ## Prerequisites
 
 - Terraform >= 1.10
+- The AWS CLI on your PATH. The stacks that talk to the cluster (`addons`, `observability`, `envs/*`) get fresh cluster credentials from `aws eks get-token` on every call, so a long apply cannot outlive a fixed token (those expire after 15 minutes).
 - AWS credentials for an admin identity (a named profile or SSO). Never put keys in files:
   `export AWS_PROFILE=<your-profile>` and confirm with `aws sts get-caller-identity`.
 
@@ -232,6 +234,54 @@ kubectl get pods -n kube-system -l app.kubernetes.io/name=aws-load-balancer-cont
 kubectl get pods -n external-secrets
 kubectl get storageclass
 ```
+
+### Apply the observability stack
+
+First apply the larger nodes (this replaces the two nodes, so QA and prod restart briefly):
+
+```bash
+cd terraform/platform
+terraform plan -out=tfplan      # expect the node group to be replaced
+terraform apply tfplan
+```
+
+Then the stack (it needs the cluster reachable and your AWS credentials, like `addons`):
+
+```bash
+cd terraform/observability
+cp backend.hcl.example backend.hcl             # set bucket = <state_bucket>
+cp terraform.tfvars.example terraform.tfvars   # set state_bucket = <state_bucket>
+terraform init -backend-config=backend.hcl
+terraform plan -out=tfplan
+terraform apply tfplan
+```
+
+| Component | What it is | Storage |
+|-----------|------------|---------|
+| kube-prometheus-stack | Prometheus (15 day retention), Alertmanager (no receivers), Grafana, node-exporter, kube-state-metrics | Prometheus 20Gi |
+| Loki | Single-instance log store, 15 day retention | 10Gi |
+| Tempo | Single-instance trace store, OTLP on 4317/4318, 15 day retention | 10Gi |
+| Grafana Alloy | Reads every pod's logs through the Kubernetes API and ships them to Loki (replaces Promtail, which reached end-of-life on 2026-03-02) | none |
+
+All volumes are gp3 on the `ebs-sc-retain` StorageClass, so logs, traces and metrics survive deleting a claim.
+Nothing is exposed to the internet; Grafana is reached with a port-forward.
+
+Open Grafana:
+
+```bash
+kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80
+```
+
+then browse to `http://localhost:3000`, user `admin`. The password is generated by the chart and is not stored in Terraform
+or Git; print it with:
+
+```bash
+kubectl get secret kube-prometheus-stack-grafana -n monitoring -o jsonpath='{.data.admin-password}' | base64 -d; echo
+```
+
+In Grafana, Explore has the **Loki** data source (try `{namespace="qa"}`), the **Prometheus** data source holds metrics, and
+**Tempo** is ready but stays empty until an app sends OpenTelemetry traces. The kube-prometheus-stack dashboards (for example
+"Kubernetes / Compute Resources / Namespace (Pods)") already show qa and prod.
 
 ### Apply the QA environment
 
@@ -371,6 +421,6 @@ Safeguards:
 
 - **GitHub OIDC provider:** only one per account. If the AWS console (IAM, Identity providers) already shows
   `token.actions.githubusercontent.com`, set `create_github_oidc_provider = false` in `terraform.tfvars`.
-- **Cost while running:** EKS control plane, one NAT gateway and two t3a.medium nodes add up to roughly
+- **Cost while running:** EKS control plane, one NAT gateway and two t3a.large nodes add up to roughly
   150 to 180 USD per month (estimate; check the AWS pricing calculator). Run `terraform destroy` when idle.
-- **Node size:** t3a.medium is enough for the app and add-ons; the observability stack will need larger nodes.
+- **Node size:** t3a.large (2 vCPU, 8 GiB) nodes carry qa, prod, the add-ons and the observability stack. Changing `node_instance_type` replaces the nodes (new group first, then the old one is drained); pods with EBS volumes restart on the new nodes.
