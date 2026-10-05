@@ -1,89 +1,42 @@
-############################
-# Git & CI
-############################
+# Keep the build context to what the image needs: the Dockerfile copies app/requirements.txt
+# and app/kyc only.
+
+# Git and CI
 .git
 .gitignore
 .github
-.gitlab
-.gitlab-ci.yml
 
-############################
-# Docs & meta
-############################
-README.md
-Documentation.md
-*.md
+# Documentation
+**/*.md
 
-############################
-# Local env files
-############################
+# Local environment files and secrets
 .env
 .env.*
 *.env
 
-############################
-# Node modules & logs
-############################
-node_modules
-**/node_modules
-npm-debug.log
-yarn-debug.log
-yarn-error.log
-pnpm-debug.log
+# Python
+.venv
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
 
-############################
-# Build outputs
-############################
-client/build
-client/dist
-server/build
-server/dist
-coverage
-.tmp
-.cache
+# Not part of the image
+terraform
+k8-manifests
+project-docs
+app/tests
+app/eval
+sonar-project.properties
 
-############################
-# Dev tools & editors
-############################
-.vscode
-.idea
-*.swp
-*.swo
-.DS_Store
-
-############################
-# Terraform
-############################
-Terraform-files-for-Cluster
+# Terraform state
 *.tfstate
 *.tfstate.*
 .terraform
-.terraform.lock.hcl
 
-############################
-# Kubernetes manifests
-############################
-k8s-manifests
-RBAC
-*.yml
-*.yaml
-
-############################
-# CI/CD configs
-############################
-Jenkinsfile
-docker-compose.yml
-
-############################
-# OS / misc
-############################
+# Editors, OS and logs
+.vscode
+.idea
+*.swp
+.DS_Store
 *.log
-*.tmp
 tmp/
-temp/
-
-############################
-# Test artifacts
-############################
-jest-report
-test-results

@@ -1,8 +1,8 @@
 # End-to-End DevSecOps on AWS EKS
 
-A production-grade DevSecOps project: a 3-tier Node.js application deployed to **AWS EKS** via **GitHub Actions**, with security scanning built into every pipeline, secretless AWS authentication, managed secrets, HTTPS routing, and full observability.
+A production-grade DevSecOps project: a **KYC Document Intelligence** service (FastAPI + Amazon Bedrock) deployed to **AWS EKS** via **GitHub Actions**, with security scanning built into every pipeline, secretless AWS authentication, managed secrets, HTTPS routing, and full observability.
 
-> **Status:** Application code and initial Kubernetes manifests are in place. CI/CD workflows, infrastructure code, MySQL manifests, secrets integration and observability are still to be built.
+> **Status:** QA and prod run end to end on one EKS cluster, with approval-gated promotion and a full observability stack. The KYC service is the workload; its accuracy evaluation is pending a Bedrock quota increase.
 
 ## What You'll Build
 
@@ -19,15 +19,25 @@ A production-grade DevSecOps project: a 3-tier Node.js application deployed to *
 
 ### Application
 
-A simple User Management app (Add / View / Edit / Delete users) serves as a placeholder workload to exercise the platform. It will later be replaced by an AI-based project (TBD), so the pipelines and manifests are designed to stay app-agnostic.
+A KYC document intelligence service. A user uploads an ID document or a proof of address; Claude (on Amazon Bedrock, which reads images and PDFs) extracts the fields against a strict schema. Each field gets a confidence score, and low-confidence, missing or malformed fields are flagged for a person to check. Results are stored in MySQL.
 
-| Tier | Technology |
-|------|------------|
-| Frontend | React 17, Webpack 5, Axios |
-| Backend | Node.js 20, Express 4, `mysql2` (REST API, port 5000) |
-| Database | MySQL 8.0 |
+| Piece | Technology |
+|-------|------------|
+| Service | Python 3.12, FastAPI, SQLAlchemy, boto3 (Bedrock Converse API) |
+| Model | Claude Haiku 4.5 by default (Sonnet 5 for the accuracy comparison), through India-only inference profiles (`in.` prefix): inference stays in `ap-south-1` and `ap-south-2` |
+| Database | MySQL 8.0 (tables `documents` and `extractions`) |
+| Review page | Built-in vanilla HTML/JS at `/ui` (strict CSP, values rendered as text only) |
+| Observability | Prometheus metrics at `/metrics`, OpenTelemetry traces to Tempo, JSON logs to Loki |
 
-API: `GET /api/users`, `POST /api/users`, `PUT /api/users/:id`, `DELETE /api/users/:id`.
+Endpoints: `POST /documents` (upload and extract), `GET /documents?needs_review=true`, `GET /documents/{id}`, `PATCH /documents/{id}/fields/{name}` (confirm or correct a field), `GET /healthz`, `/ui`, `/docs`.
+
+**Privacy by design:**
+- Uploaded files are processed in memory and **never stored**; only a SHA-256 hash, the extracted fields and confidence scores are kept.
+- Field values are never logged; a redacting filter backs that up and a test reads the real log output to prove it. Trace spans carry only IDs, the model and token counts.
+- Document content is treated as untrusted: the prompt tells the model to ignore any instructions inside a document.
+- AWS access is IRSA only: a per-environment role that can invoke just the two India-only inference profiles.
+
+Accuracy is measured on a golden set of 18 synthetic, watermarked SPECIMEN documents (see `app/eval/README.md`): field accuracy, the accuracy of fields passed without review, and how many wrong fields the review flag catches. Results will be added here once the Bedrock quota is approved.
 
 ### Infrastructure and Pipeline Tooling
 
@@ -195,7 +205,7 @@ If port 3000 is already in use, pick another local port, for example `3001:80`, 
 | Logs (Loki) | Explore, data source **Loki** | `{namespace="qa"}` or `{namespace="prod", app="nodejs-app"}`. Add `\|= "error"` to filter. |
 | Metrics (Prometheus) | Explore, data source **Prometheus** | `sum by (namespace) (container_memory_working_set_bytes)` |
 | Dashboards | Dashboards, then browse | **Kubernetes / Compute Resources / Namespace (Pods)** (pick `qa` or `prod`), **Kubernetes / Compute Resources / Cluster**, **Node Exporter / Nodes** |
-| Traces (Tempo) | Explore, data source **Tempo** | Empty for now. The sample app sends no traces; this fills in once an OpenTelemetry-instrumented app is deployed. |
+| Traces (Tempo) | Explore, data source **Tempo** | Search by service `kyc-document-intelligence`. Each upload shows the HTTP request and the Bedrock call (model, tokens, latency; no personal data). |
 
 Retention is 15 days for logs, metrics and traces. Data lives on `gp3` volumes with the `Retain` policy, so it survives pod
 restarts and even deleting a volume claim.
@@ -368,9 +378,11 @@ Only `qa` and `prod` are in scope today. The pipelines are meant to be driven by
 ## Repository Layout
 
 ```
-client/                 React frontend (Webpack build)
-server/                 Node.js + Express backend (config, models, controllers, routes)
-Dockerfile              Builds client, bundles into server image; runs as non-root
+app/
+  kyc/                  FastAPI service (extraction, validation, storage, PII-safe logging, review page)
+  tests/                pytest suite (no AWS or MySQL needed)
+  eval/                 Golden set generator, scoring and the Haiku vs Sonnet accuracy runner
+Dockerfile              Multi-stage Python image; runs as non-root (UID 10001) on port 5000
 sonar-project.properties SonarCloud project config
 k8-manifests/
   qa/                   App, MySQL, SecretStore/ExternalSecret, Ingress (qa namespace), kustomization.yaml
@@ -386,22 +398,31 @@ terraform/              AWS infrastructure (see terraform/README.md)
 
 ## Local Development
 
-```bash
-# Backend (needs a reachable MySQL)
-cd server && npm install && npm start      # http://localhost:5000
+Run the tests and the linter (no AWS or MySQL needed):
 
-# Frontend bundle
-cd client && npm install && npm run build
+```bash
+cd app && python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
+.venv/bin/python -m pytest && .venv/bin/ruff check .
 ```
 
-Backend environment variables: `PORT`, `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`.
+Run the service against real Bedrock with a local SQLite database (needs AWS credentials with Bedrock access and a quota for the model):
+
+```bash
+KYC_DATABASE_URL="sqlite+pysqlite:///kyc-local.db" AWS_REGION=ap-south-1 \
+  .venv/bin/uvicorn kyc.main:get_app --factory --port 5000
+```
+
+Then open <http://localhost:5000/ui> (or `/docs`). Use the synthetic documents in `app/eval/golden/` and never real personal documents.
+
+Settings (environment variables): `PORT`, `AWS_REGION`, `BEDROCK_MODEL_ID` (default `in.anthropic.claude-haiku-4-5-20251001-v1:0`), `CONFIDENCE_THRESHOLD` (0.85), `MAX_UPLOAD_BYTES`, `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` (or `KYC_DATABASE_URL`), `KYC_API_KEY` (optional), `OTEL_EXPORTER_OTLP_ENDPOINT` (optional), `LOG_LEVEL`.
 
 Container image:
 
 ```bash
 docker build -t nodejs-app .
-docker run -p 5000:5000 -e DB_HOST=<mysql-host> -e DB_USER=<user> -e DB_PASSWORD=<password> -e DB_NAME=<db> nodejs-app
 ```
+
+The image, ECR repository and Deployment are still named `nodejs-app`, from the sample app this service replaced, so the pipeline needed no changes.
 
 ## Prerequisites
 

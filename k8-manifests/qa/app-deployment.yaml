@@ -13,6 +13,10 @@ spec:
       labels:
         app: nodejs-app
     spec:
+      # IRSA: this service account is annotated with the IAM role that may call Bedrock
+      # (created by Terraform in the app-env module). AWS credentials arrive through a
+      # projected token, so the default Kubernetes API token stays unmounted.
+      serviceAccountName: kyc-app
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
@@ -49,35 +53,45 @@ spec:
                 secretKeyRef:
                   name: mysql-secret
                   key: MYSQL_PASSWORD
-            - name: DATABASE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: mysql-secret
-                  key: DATABASE_URL
+            - name: AWS_REGION
+              value: ap-south-1
+            # India-only inference profile: inference stays in ap-south-1 / ap-south-2.
+            - name: BEDROCK_MODEL_ID
+              value: in.anthropic.claude-haiku-4-5-20251001-v1:0
+            - name: LOG_LEVEL
+              value: INFO
+            # Traces go to Tempo (OTLP over HTTP).
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://tempo.monitoring.svc.cluster.local:4318
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
           resources:
             requests:
               cpu: 100m
-              memory: 128Mi
+              memory: 192Mi
             limits:
               cpu: 500m
               memory: 512Mi
-          # The sample app has no health endpoint; "/" serves the frontend.
-          # Replace with a dedicated /healthz path when the app is swapped.
+          # /healthz answers 200 only when the database is reachable. The startup probe gives the
+          # app time to wait for MySQL on a cold start before liveness checks begin.
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+            failureThreshold: 36
           readinessProbe:
             httpGet:
-              path: /
+              path: /healthz
               port: http
-            initialDelaySeconds: 10
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /
+              path: /healthz
               port: http
-            initialDelaySeconds: 30
             periodSeconds: 20
           volumeMounts:
             - name: tmp
