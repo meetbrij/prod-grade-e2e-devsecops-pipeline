@@ -1,0 +1,232 @@
+{
+  "note": "Synthetic, fictional, watermarked SPECIMEN documents for testing only.",
+  "seed": 20261005,
+  "documents": [
+    {
+      "file": "id_01.png",
+      "document_type": "id_document",
+      "difficulty": "clean",
+      "fields": {
+        "full_name": "WEI NOVAK",
+        "date_of_birth": "1969-02-18",
+        "id_number": "SPC1367923B",
+        "nationality": "EXAMPLIAN",
+        "expiry_date": "2033-09-03",
+        "issuing_country": "REPUBLIC OF EXAMPLIA"
+      }
+    },
+    {
+      "file": "id_02.png",
+      "document_type": "id_document",
+      "difficulty": "clean",
+      "fields": {
+        "full_name": "MEI DUBOIS",
+        "date_of_birth": "2001-07-19",
+        "id_number": "SPC4814106A",
+        "nationality": "EXAMPLIAN",
+        "expiry_date": "2034-06-20",
+        "issuing_country": "REPUBLIC OF EXAMPLIA"
+      }
+    },
+    {
+      "file": "id_03.png",
+      "document_type": "id_document",
+      "difficulty": "clean",
+      "fields": {
+        "full_name": "AISHA COSTA",
+        "date_of_birth": "1984-05-10",
+        "id_number": "SPC1893491D",
+        "nationality": "EXAMPLIAN",
+        "expiry_date": "2035-10-02",
+        "issuing_country": "REPUBLIC OF EXAMPLIA"
+      }
+    },
+    {
+      "file": "id_04.jpg",
+      "document_type": "id_document",
+      "difficulty": "degraded",
+      "fields": {
+        "full_name": "WEI SAID TAN",
+        "date_of_birth": "1960-12-06",
+        "id_number": "SPC8934428C",
+        "nationality": "EXAMPLIAN",
+        "expiry_date": "2033-09-05",
+        "issuing_country": "REPUBLIC OF EXAMPLIA"
+      }
+    },
+    {
+      "file": "id_05.png",
+      "document_type": "id_document",
+      "difficulty": "clean",
+      "fields": {
+        "full_name": "SOFIA ALI NAIR",
+        "date_of_birth": "1987-02-02",
+        "id_number": "SPC8175587B",
+        "nationality": "EXAMPLIAN",
+        "expiry_date": "2033-01-11",
+        "issuing_country": "REPUBLIC OF EXAMPLIA"
+      }
+    },
+    {
+      "file": "id_06.png",
+      "document_type": "id_document",
+      "difficulty": "clean",
+      "fields": {
+        "full_name": "IVAN AZIZ",
+        "date_of_birth": "1964-03-24",
+        "id_number": "SPC6109002F",
+        "nationality": "EXAMPLIAN",
+        "expiry_date": "2036-08-02",
+        "issuing_country": "REPUBLIC OF EXAMPLIA"
+      }
+    },
+    {
+      "file": "id_07.jpg",
+      "document_type": "id_document",
+      "difficulty": "degraded",
+      "fields": {
+        "full_name": "MEI NOOR SILVA",
+        "date_of_birth": "1961-01-25",
+        "id_number": "SPC7045893A",
+        "nationality": "EXAMPLIAN",
+        "expiry_date": "2035-01-17",
+        "issuing_country": "REPUBLIC OF EXAMPLIA"
+      }
+    },
+    {
+      "file": "id_08.png",
+      "document_type": "id_document",
+      "difficulty": "clean",
+      "fields": {
+        "full_name": "LAYLA SAID TAN",
+        "date_of_birth": "1973-05-12",
+        "id_number": "SPC6640874A",
+        "nationality": "EXAMPLIAN",
+        "expiry_date": "2034-11-27",
+        "issuing_country": "REPUBLIC OF EXAMPLIA"
+      }
+    },
+    {
+      "file": "id_09.png",
+      "document_type": "id_document",
+      "difficulty": "clean",
+      "fields": {
+        "full_name": "ELENA NOOR COSTA",
+        "date_of_birth": "1980-10-07",
+        "id_number": "SPC7764913H",
+        "nationality": "EXAMPLIAN",
+        "expiry_date": "2035-10-03",
+        "issuing_country": "REPUBLIC OF EXAMPLIA"
+      }
+    },
+    {
+      "file": "id_10.jpg",
+      "document_type": "id_document",
+      "difficulty": "degraded",
+      "fields": {
+        "full_name": "KWAME COSTA",
+        "date_of_birth": "1968-02-25",
+        "id_number": "SPC5194493D",
+        "nationality": "EXAMPLIAN",
+        "expiry_date": "2033-05-21",
+        "issuing_country": "REPUBLIC OF EXAMPLIA"
+      }
+    },
+    {
+      "file": "poa_01.png",
+      "document_type": "proof_of_address",
+      "difficulty": "clean",
+      "fields": {
+        "full_name": "Amina Maria Tan",
+        "address_line": "Apartment 1710, Harbour Heights, Fictional Avenue 44",
+        "city": "Mockford",
+        "issue_date": "2026-09-21",
+        "issuer": "Sample Gas & Electric"
+      }
+    },
+    {
+      "file": "poa_02.png",
+      "document_type": "proof_of_address",
+      "difficulty": "clean",
+      "fields": {
+        "full_name": "Elena Aziz",
+        "address_line": "Unit 3207, Palm Court Tower, Imaginary Street 47",
+        "city": "Mockford",
+        "issue_date": "2026-08-26",
+        "issuer": "Mockford Municipal Services"
+      }
+    },
+    {
+      "file": "poa_03.png",
+      "document_type": "proof_of_address",
+      "difficulty": "degraded",
+      "fields": {
+        "full_name": "Amina Khan",
+        "address_line": "Apartment 3039, Harbour Heights, Imaginary Street 11",
+        "city": "Samplebury",
+        "issue_date": "2026-07-18",
+        "issuer": "Imaginary Power & Water Co."
+      }
+    },
+    {
+      "file": "poa_04.png",
+      "document_type": "proof_of_address",
+      "difficulty": "clean",
+      "fields": {
+        "full_name": "Aisha Silva",
+        "address_line": "Unit 1309, Example Plaza, Testing Lane 75",
+        "city": "Exampleton",
+        "issue_date": "2026-07-30",
+        "issuer": "Testland Broadband"
+      }
+    },
+    {
+      "file": "poa_05.png",
+      "document_type": "proof_of_address",
+      "difficulty": "clean",
+      "fields": {
+        "full_name": "Mei Anne Nair",
+        "address_line": "Apartment 1500, Example Plaza, Imaginary Street 57",
+        "city": "Exampleton",
+        "issue_date": "2026-08-28",
+        "issuer": "Fictional Telecom Ltd"
+      }
+    },
+    {
+      "file": "poa_06.pdf",
+      "document_type": "proof_of_address",
+      "difficulty": "degraded",
+      "fields": {
+        "full_name": "Priya Petrov",
+        "address_line": "Flat 2110, Harbour Heights, Sample Road 66",
+        "city": "Mockford",
+        "issue_date": "2026-09-24",
+        "issuer": "Mockford Municipal Services"
+      }
+    },
+    {
+      "file": "poa_07.pdf",
+      "document_type": "proof_of_address",
+      "difficulty": "clean",
+      "fields": {
+        "full_name": "Marco Noor Farouk",
+        "address_line": "Unit 2514, Harbour Heights, Sample Road 16",
+        "city": "Samplebury",
+        "issue_date": "2026-09-01",
+        "issuer": "Fictional Telecom Ltd"
+      }
+    },
+    {
+      "file": "poa_08.pdf",
+      "document_type": "proof_of_address",
+      "difficulty": "degraded",
+      "fields": {
+        "full_name": "Elena Murray",
+        "address_line": "Unit 1233, Example Plaza, Imaginary Street 39",
+        "city": "Placeholder Bay",
+        "issue_date": "2026-08-04",
+        "issuer": "Testland Broadband"
+      }
+    }
+  ]
+}

@@ -63,9 +63,9 @@ API: `GET /api/users`, `POST /api/users`, `PUT /api/users/:id`, `DELETE /api/use
 | AWS Secrets Manager | Central, encrypted store for database credentials so they are never committed or hand-created in the cluster. | Infra |
 | External Secrets Operator | Syncs Secrets Manager values into Kubernetes Secrets using IRSA, with a separate service account and IAM role per environment namespace. Keeps secrets out of Git. | Infra |
 | Prometheus and Alertmanager | Collect cluster and app metrics and route alerts (CPU, memory, restarts, error rate). Installed through kube-prometheus-stack. | Infra |
-| Loki and Promtail | Centralized log storage and the per-node agent that ships pod logs to it, so debugging does not need `kubectl logs` on each pod. | Infra |
+| Loki and Grafana Alloy | Centralized log storage (15 day retention) and the collector that ships every pod's logs to it, so debugging does not need `kubectl logs` on each pod. Alloy replaces Promtail, which is end-of-life. | Infra |
 | Tempo and OpenTelemetry | Distributed tracing: OpenTelemetry instruments the app and Tempo stores traces, showing where a slow request spends its time. | Infra |
-| Grafana | Single dashboard for metrics, logs and traces with alerting, so on-call engineers use one view. | Infra |
+| Grafana | Single dashboard for metrics, logs and traces with alerting, so on-call engineers use one view. Reached through `kubectl port-forward`; see Using Grafana below. | Infra |
 | AWS CloudTrail | Audit log of every role assumption and API call, including pipeline deployments. | Infra |
 
 ## Architecture
@@ -154,7 +154,7 @@ Terraform creates the Secrets Manager secret and its IAM role but not the passwo
 flowchart TD
     W[Kubernetes workloads<br/>metrics, logs, traces]
     W --> KPS[kube-prometheus-stack]
-    W --> PT[Promtail<br/>DaemonSet]
+    W --> PT[Grafana Alloy<br/>log collector]
     W --> OT[OpenTelemetry SDK]
     KPS --> P[(Prometheus)]
     PT --> L[(Loki)]
@@ -164,6 +164,61 @@ flowchart TD
     T -->|traces| G
     G --> ENG([DevOps / on-call engineer])
 ```
+
+### Using Grafana
+
+Grafana is deliberately not exposed to the internet. You reach it from your own machine through a port-forward, which tunnels
+`localhost` to the Grafana pod in the cluster. You need `kubectl` pointed at the cluster
+(`aws eks update-kubeconfig --name devsecops-eks --region ap-south-1` once) and your AWS credentials set.
+
+**1. Get the admin password.** The chart generates a random one when it is installed. It is stored only in the cluster
+(never in Terraform or Git), so read it from the Kubernetes Secret:
+
+```bash
+kubectl get secret kube-prometheus-stack-grafana -n monitoring -o jsonpath='{.data.admin-password}' | base64 -d; echo
+```
+
+**2. Open the tunnel.** Leave this running in its own terminal (stop it with Ctrl+C):
+
+```bash
+kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80
+```
+
+If port 3000 is already in use, pick another local port, for example `3001:80`, and browse to that port instead.
+
+**3. Log in.** Browse to <http://localhost:3000>. Username `admin`, password from step 1.
+
+**4. Where to look**
+
+| What | Where in Grafana | Try |
+|------|------------------|-----|
+| Logs (Loki) | Explore, data source **Loki** | `{namespace="qa"}` or `{namespace="prod", app="nodejs-app"}`. Add `\|= "error"` to filter. |
+| Metrics (Prometheus) | Explore, data source **Prometheus** | `sum by (namespace) (container_memory_working_set_bytes)` |
+| Dashboards | Dashboards, then browse | **Kubernetes / Compute Resources / Namespace (Pods)** (pick `qa` or `prod`), **Kubernetes / Compute Resources / Cluster**, **Node Exporter / Nodes** |
+| Traces (Tempo) | Explore, data source **Tempo** | Empty for now. The sample app sends no traces; this fills in once an OpenTelemetry-instrumented app is deployed. |
+
+Retention is 15 days for logs, metrics and traces. Data lives on `gp3` volumes with the `Retain` policy, so it survives pod
+restarts and even deleting a volume claim.
+
+**Other consoles (optional)**, each in its own terminal:
+
+```bash
+kubectl port-forward -n monitoring svc/kube-prometheus-stack-prometheus 9090:9090     # Prometheus: http://localhost:9090
+kubectl port-forward -n monitoring svc/kube-prometheus-stack-alertmanager 9093:9093   # Alertmanager: http://localhost:9093
+```
+
+**If you forget or want to change the password.** Reading the Secret (step 1) always shows the current generated password.
+To set your own, run the following once. It changes it inside Grafana's database; the Secret keeps showing the original
+generated value, so note the new one yourself:
+
+```bash
+kubectl exec -n monitoring deploy/kube-prometheus-stack-grafana -c grafana -- grafana cli admin reset-admin-password '<new-password>'
+```
+
+**If a page is empty or the login fails:**
+- Check the pods are running: `kubectl get pods -n monitoring` (everything should be `Running`).
+- Logs missing: `kubectl logs -n monitoring deploy/alloy -c alloy --tail=50` should show no `level=error` lines.
+- Password rejected: re-read it from the Secret; do not trust an old copy, because reinstalling the chart can generate a new one.
 
 ## Branching Strategy
 

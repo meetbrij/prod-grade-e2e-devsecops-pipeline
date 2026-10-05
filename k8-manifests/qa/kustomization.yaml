@@ -14,4 +14,4 @@ resources:
 images:
   - name: nodejs-app
     newName: nodejs-app
-    newTag: "49940f00b79c5827fa7cbed160da6e80ba176308"
+    newTag: "c2d270cc735fe64027fb4117d81749d6eebab257"

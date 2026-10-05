@@ -5,6 +5,10 @@ data "aws_eks_cluster" "this" {
   name = var.cluster_name
 }
 
+data "aws_caller_identity" "current" {}
+
+data "aws_region" "current" {}
+
 # ---------------------------------------------------------------- namespace
 
 resource "kubernetes_namespace_v1" "this" {
@@ -238,5 +242,103 @@ resource "kubernetes_role_binding_v1" "deploy_external_secrets" {
     api_group = "rbac.authorization.k8s.io"
     kind      = "Group"
     name      = "${var.env_name}-deployers"
+  }
+}
+
+# ---------------------------------------------- app identity for Amazon Bedrock
+
+locals {
+  bedrock_enabled = length(var.bedrock_inference_profile_ids) > 0
+
+  bedrock_profile_arns = [
+    for id in var.bedrock_inference_profile_ids :
+    "arn:aws:bedrock:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:inference-profile/${id}"
+  ]
+
+  # An inference profile fans out to the underlying model in each of its regions, and the caller
+  # needs permission on each. The 'in.' prefix is not part of the foundation model ID.
+  bedrock_model_arns = distinct(flatten([
+    for id in var.bedrock_inference_profile_ids : [
+      for region in var.bedrock_model_regions :
+      "arn:aws:bedrock:${region}::foundation-model/${trimprefix(id, "in.")}"
+    ]
+  ]))
+}
+
+data "aws_iam_policy_document" "app_assume" {
+  count = local.bedrock_enabled ? 1 : 0
+
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [var.oidc_provider_arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "${var.oidc_provider}:sub"
+      values   = ["system:serviceaccount:${var.env_name}:kyc-app"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "${var.oidc_provider}:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "app" {
+  count = local.bedrock_enabled ? 1 : 0
+
+  name               = "${var.cluster_name}-${var.env_name}-kyc-app"
+  assume_role_policy = data.aws_iam_policy_document.app_assume[0].json
+}
+
+data "aws_iam_policy_document" "app_bedrock" {
+  count = local.bedrock_enabled ? 1 : 0
+
+  # Invoke only the listed inference profiles...
+  statement {
+    sid       = "InvokeInferenceProfiles"
+    actions   = ["bedrock:InvokeModel"]
+    resources = local.bedrock_profile_arns
+  }
+
+  # ...and the underlying models, but only when the call comes through one of those profiles.
+  statement {
+    sid       = "InvokeModelsOnlyViaProfiles"
+    actions   = ["bedrock:InvokeModel"]
+    resources = local.bedrock_model_arns
+
+    condition {
+      test     = "StringLike"
+      variable = "bedrock:InferenceProfileArn"
+      values   = local.bedrock_profile_arns
+    }
+  }
+}
+
+resource "aws_iam_role_policy" "app_bedrock" {
+  count = local.bedrock_enabled ? 1 : 0
+
+  name   = "invoke-bedrock-${var.env_name}"
+  role   = aws_iam_role.app[0].id
+  policy = data.aws_iam_policy_document.app_bedrock[0].json
+}
+
+# The service account the app pods run as; IRSA exchanges its token for the role above.
+resource "kubernetes_service_account_v1" "app" {
+  count = local.bedrock_enabled ? 1 : 0
+
+  metadata {
+    name      = "kyc-app"
+    namespace = kubernetes_namespace_v1.this.metadata[0].name
+
+    annotations = {
+      "eks.amazonaws.com/role-arn" = aws_iam_role.app[0].arn
+    }
   }
 }

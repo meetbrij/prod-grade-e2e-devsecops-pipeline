@@ -18,3 +18,11 @@ output "deploy_role_arn" {
   description = "Set as the AWS_ROLE_TO_ASSUME_QA variable in GitHub."
   value       = module.app_env.deploy_role_arn
 }
+
+output "app_service_account" {
+  value = module.app_env.app_service_account
+}
+
+output "app_role_arn" {
+  value = module.app_env.app_role_arn
+}
