@@ -27,3 +27,23 @@ def test_filter_scrubs_formatted_messages(caplog):
     with caplog.at_level(logging.INFO, logger="kyc.test"):
         logger.info("value %s", "ZZ1234567")
     assert "ZZ1234567" not in caplog.text
+
+
+def test_scrub_stays_fast_on_hostile_input():
+    """Log text can contain attacker-controlled content; the patterns must not backtrack badly."""
+    import time
+
+    from kyc.pii import scrub
+
+    for hostile in ("a" * 100_000, "a-" * 50_000, "a." * 50_000, "x" * 50_000 + "@"):
+        started = time.perf_counter()
+        scrub(hostile)
+        assert time.perf_counter() - started < 2.0
+
+
+def test_scrub_masks_tokens_with_digits_but_keeps_plain_words():
+    from kyc.pii import scrub
+
+    assert scrub("passport ZZ1234567 issued") == "passport [id] issued"
+    assert scrub("document processed successfully") == "document processed successfully"
+    assert scrub("mail zed.fake@example.org now") == "mail [email] now"

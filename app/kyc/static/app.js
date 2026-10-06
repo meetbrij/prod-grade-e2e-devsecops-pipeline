@@ -169,7 +169,7 @@
       const doc = await api("/documents", { method: "POST", headers: authHeaders(), body: form });
       setStatus("");
       showDocument($("result"), doc, loadQueue);
-      if (doc.needs_review) loadQueue();
+      if (doc.needs_review) void loadQueue(); // loadQueue reports its own errors
     } catch (err) {
       $("result").replaceChildren();
       setStatus(err.message, true);

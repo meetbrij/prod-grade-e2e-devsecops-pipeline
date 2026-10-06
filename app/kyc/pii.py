@@ -11,8 +11,10 @@ import logging
 import re
 from datetime import UTC, datetime
 
-_EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
-_LONG_ALNUM_WITH_DIGIT = re.compile(r"\b(?=[A-Za-z0-9-]*\d)[A-Za-z0-9-]{6,}\b")
+# Quantifiers are bounded so a long run of characters cannot cause super-linear backtracking
+# (a ReDoS risk, because log text can contain attacker-controlled content).
+_EMAIL = re.compile(r"[\w.+-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63})+")
+_LONG_TOKEN = re.compile(r"\b[A-Za-z0-9-]{6,}\b")
 _ISO_DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 # UUIDs (document IDs) are safe and useful, so they are protected from the masks above.
 _UUID = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b")
@@ -27,6 +29,11 @@ def mask(value: str | None, keep: int = 2) -> str:
     return "*" * (len(value) - keep) + value[-keep:]
 
 
+def _mask_if_it_has_a_digit(match: re.Match[str]) -> str:
+    token = match.group(0)
+    return "[id]" if any(c.isdigit() for c in token) else token
+
+
 def scrub(text: str) -> str:
     """Remove emails, dates and long identifier-like tokens from free text."""
     uuids: list[str] = []
@@ -38,7 +45,7 @@ def scrub(text: str) -> str:
     text = _UUID.sub(_stash, text)
     text = _EMAIL.sub("[email]", text)
     text = _ISO_DATE.sub("[date]", text)
-    text = _LONG_ALNUM_WITH_DIGIT.sub("[id]", text)
+    text = _LONG_TOKEN.sub(_mask_if_it_has_a_digit, text)
     return re.sub(r"\x00(\d+)\x00", lambda m: uuids[int(m.group(1))], text)
 
 
