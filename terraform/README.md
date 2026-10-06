@@ -263,7 +263,11 @@ terraform apply tfplan
 | Tempo | Single-instance trace store, OTLP on 4317/4318, 15 day retention | 10Gi |
 | Grafana Alloy | Reads every pod's logs through the Kubernetes API and ships them to Loki (replaces Promtail, which reached end-of-life on 2026-03-02) | none |
 
-All volumes are gp3 on the `ebs-sc-retain` StorageClass, so logs, traces and metrics survive deleting a claim.
+All volumes are gp3 and were created on the `ebs-sc-retain` StorageClass. Because the AI-log-analysis project was dropped, their
+reclaim policy was patched to `Delete` in place (`kubectl patch pv <name> -p '{"spec":{"persistentVolumeReclaimPolicy":"Delete"}}'`),
+so deleting a claim or destroying this stack also removes the EBS volume. The StorageClass name in the claim is unchanged
+(it cannot be edited on a StatefulSet), and a fresh install would again use `ebs-sc-retain`: patch the new PVs the same way, or
+change `storage_class` to `ebs-sc` before that install.
 Nothing is exposed to the internet; Grafana is reached with a port-forward.
 
 Open Grafana:
