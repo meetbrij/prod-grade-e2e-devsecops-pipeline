@@ -485,7 +485,7 @@ The image, ECR repository and Deployment are still named `nodejs-app`, from the 
 - **Scanners report, they do not block:** `ENFORCE_SCANS` is off, so Checkov and Trivy only report today. Gitleaks is a hard gate. The Sonar quality gate blocks only once enforcement is on.
 - **Not yet in place:** NetworkPolicies, PodDisruptionBudgets, and a ServiceMonitor so Prometheus scrapes `/metrics`.
 - **Shared blast radius:** `qa` and `prod` share one cluster, one ALB and two nodes. This is a cost decision, and the isolation boundary is IAM plus namespace RBAC.
-- **Branch protection is deferred:** `qa` may only block force-push and deletion, because the pipeline's bot commits the deployed tag to it.
+- **`qa` protection is deliberately light:** rulesets block force-push and deletion on `qa` and require a PR on `main`, but `qa` cannot require PRs or status checks because the pipeline's bot commits the deployed tag to it. Anyone with write access can still push straight to `qa`.
 - **Region and data-residency note:** the write-up on why `ap-south-1`, and what changes for a UAE bank, is pending the evaluation results.
 
 ## Roadmap
@@ -497,4 +497,5 @@ The image, ECR repository and Deployment are still named `nodejs-app`, from the 
 | Accuracy evaluation | Golden set and runner built; numbers pending | waiting on Bedrock quota |
 | API key | `<env>/kyc-api-key` secret, ExternalSecret and a required env var | next, before any real upload |
 | Region note | Region choice and UAE data-residency changes, with the eval results | pending |
-| Hardening | Enforce scanners, NetworkPolicies, ServiceMonitor, branch protection | deferred |
+| Branch protection | Rulesets on `qa` and `main`, GitHub Environment `prod` with a required reviewer | done |
+| Hardening | Enforce scanners, NetworkPolicies, ServiceMonitor | deferred |
