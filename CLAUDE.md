@@ -8,11 +8,15 @@ Guidance for Claude Code when working in this repository.
 
 `project-docs/` holds reference material (architecture guides, diagrams, branching and environment PDFs). It is **gitignored**: never commit it, never make the repo depend on it, and do not copy its contents verbatim into committed files. Read it for context only.
 
+## Documentation map
+
+Human-facing docs live in `README.md`, `terraform/README.md` and `docs/` (index in `docs/README.md`: runbook, troubleshooting, decisions, security-gates, eks-explained). When you change behaviour, update the matching doc in the same PR; `docs/security-gates.md` must list every scanner suppression.
+
 ## Project Summary
 
 Production-grade DevSecOps project on AWS: a KYC Document Intelligence service (FastAPI + Amazon Bedrock + MySQL) deployed to **AWS EKS** through **GitHub Actions** CI/CD with branch-based promotion (feature → `qa` → `main`), embedded security scanning, secretless AWS auth, external secrets management, HTTPS via ALB/Route 53/ACM, and a full observability stack.
 
-The goal is the platform and pipeline; keep pipelines, manifests and infra app-agnostic (parameterize image name, ports, health paths, env vars, hostnames). **The CI/CD pipeline is frozen**: only changes forced by a language change are allowed in `.github/workflows/qa-cicd.yml`; do not change job names, order, triggers, ECR/deploy or prod logic. The image, ECR repository, Deployment and kustomize image are still named `nodejs-app` (from the original sample app) on purpose, so nothing in the pipeline or Terraform changed for the swap; renaming them is a pipeline change.
+The goal is the platform and pipeline; keep pipelines, manifests and infra app-agnostic (parameterize image name, ports, health paths, env vars, hostnames). **The CI/CD pipeline is softly frozen**: do not restructure it (job names, order, ECR/deploy or prod logic stay as they are), but small, obvious improvements and fixes are allowed when the user asks for them or approves them (so far: scanner enforcement with `--ignore-unfixed`, and `paths-ignore` so docs-only changes skip the pipelines). The image, ECR repository, Deployment and kustomize image are still named `nodejs-app` (from the original sample app) on purpose, so nothing in the pipeline or Terraform changed for the swap; renaming them is a pipeline change.
 
 ## Decisions
 
