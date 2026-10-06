@@ -82,3 +82,7 @@ docker-compose.override.yml
 logs/
 tmp/
 temp/
+
+# Coverage output
+.coverage
+coverage.xml

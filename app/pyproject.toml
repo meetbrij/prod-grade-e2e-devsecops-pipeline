@@ -16,6 +16,12 @@ ignore = ["S101"]  # assert is fine in tests
 "tests/*" = ["S105", "S106"]
 "eval/*" = ["S311"]
 
+[tool.coverage.run]
+source = ["."]
+relative_files = true
+# Measure the service only; tests, the eval harness and the virtualenv are not source.
+omit = ["tests/*", "eval/*", ".venv/*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
