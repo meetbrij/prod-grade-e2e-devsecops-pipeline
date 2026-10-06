@@ -55,6 +55,7 @@ A suppression must always carry its reason in the same place as the skip. Never 
 | CKV_AWS_136 | ECR repository | AES256 encryption is on; a customer-managed key is parked |
 | CKV_TF_1 | `eks`, `vpc` modules | Public registry modules pinned by version constraint; commit-hash pinning is parked |
 | CKV_AWS_18, 144, 2_AWS_62 | state bucket | Access logging, cross-region replication and event notifications are not worth it for a single-user state bucket; CloudTrail records the API calls |
+| CKV_AWS_394 | platform `aws_availability_zones` | New in Checkov 3.3 (CI installs the newest 3.x). The first `az_count` zones are used and the subnets already exist; pinning zone names explicitly is parked |
 | CKV_AWS_145 | state bucket | SSE-S3 encryption is on; a customer-managed key is parked |
 
 ## Parked for later
@@ -70,6 +71,8 @@ A suppression must always carry its reason in the same place as the skip. Never 
 2. **Real finding:** fix it. For a Trivy finding that has a fix, bump the dependency in `app/requirements.txt` (and rebuild) or move to a patched base image.
 3. **Accepted risk:** add a suppression next to the code with a written reason, and add a row to the tables above in the same PR.
 4. **Only if the pipeline must ship now:** set `ENFORCE_SCANS` to `"false"` in its own PR, ship, then restore it and fix the finding. Record why in the PR.
+
+**New Checkov checks can appear without a code change.** CI installs `checkov~=3.2`, which resolves to the newest 3.x, so a Checkov release can add a check that fails an untouched file. Fix it or suppress it with a reason (this happened once: CKV_AWS_394). Pinning an exact version would stop this, but also stops new checks; that is a pipeline change, so decide it deliberately.
 
 ## Check locally before turning gates on or after changing a scanner
 
