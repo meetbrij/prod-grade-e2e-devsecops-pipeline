@@ -21,6 +21,10 @@ locals {
 }
 
 resource "aws_s3_bucket" "state" {
+  #checkov:skip=CKV_AWS_18:Access logging for a single-user state bucket is parked; CloudTrail records the API calls
+  #checkov:skip=CKV_AWS_144:Cross-region replication of the state bucket is not worth the cost for this project
+  #checkov:skip=CKV2_AWS_62:Event notifications are not needed for a state bucket
+  #checkov:skip=CKV_AWS_145:The bucket uses SSE-S3 encryption; a customer-managed KMS key is parked
   bucket = local.bucket_name
 
   # Losing this bucket means losing track of all infrastructure.

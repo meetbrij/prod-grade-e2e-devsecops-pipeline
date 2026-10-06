@@ -72,6 +72,8 @@ resource "kubernetes_limit_range_v1" "this" {
 # The secret container only. The values (DB credentials) are set out-of-band so they
 # never enter Terraform state.
 resource "aws_secretsmanager_secret" "mysql" {
+  #checkov:skip=CKV_AWS_149:Default aws/secretsmanager key is sufficient here; a customer-managed key adds cost and is parked
+  #checkov:skip=CKV2_AWS_57:Write-once secret: MySQL reads it only at first start, so automatic rotation would break the app
   name                    = "${var.env_name}/mysql-secret"
   description             = "MySQL credentials for the ${var.env_name} environment. Values are set manually."
   recovery_window_in_days = var.secret_recovery_window_days

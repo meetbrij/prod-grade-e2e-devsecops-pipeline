@@ -1,6 +1,7 @@
 # VPC with public subnets (ALB, NAT) and private subnets (nodes).
 # A single NAT gateway keeps cost down at the price of an AZ-level single point of failure.
 module "vpc" {
+  #checkov:skip=CKV_TF_1:Public registry module pinned by a version constraint; commit-hash pinning is parked
   source  = "terraform-aws-modules/vpc/aws"
   version = "~> 6.0"
 

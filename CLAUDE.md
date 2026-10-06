@@ -127,7 +127,7 @@ Rules to preserve:
 - Pipelines live in `.github/workflows/`; branch conditions must prevent `qa` pushes from triggering a prod deploy.
 - Separate manifests per env: `k8-manifests/qa/` and `k8-manifests/prod/` (different resources, replicas, ingress, env, probes).
 - Environment-specific values (namespace, cluster, role ARN, host, replicas) must be inputs/variables rather than hardcoded, so `dev`/`ppd` can be added without restructuring.
-- High/Critical Trivy findings, Gitleaks hits, and failed Sonar quality gates fail the pipeline. No bypass flags.
+- High/Critical Trivy findings, Gitleaks hits, and failed Sonar quality gates fail the pipeline. No bypass flags. Trivy ignores unfixed CVEs (`--ignore-unfixed`, user-approved change to the frozen pipeline); the one switch is `ENFORCE_SCANS`, documented in `docs/security-gates.md`.
 - Use rolling updates for zero downtime.
 
 ## Conventions for Claude
@@ -141,7 +141,7 @@ Rules to preserve:
 
 ## Parked Work (backlog)
 
-- **Enforce scanners:** `ENFORCE_SCANS` is `"false"` in `qa-cicd.yml`, so Checkov and Trivy only report. Must be set to `"true"` after reviewing the first findings on the KYC service (the earlier Node findings are obsolete). Known Checkov items on the manifests: NetworkPolicy, `imagePullPolicy`, image digest (CKV_K8S_43, conflicts with SHA-tag promotion) and secrets as env vars (CKV_K8S_35, ESO `envFrom`); suppress those two with written justification.
+- **Scanner enforcement (applied):** `ENFORCE_SCANS` is `"true"` in `qa-cicd.yml`, so Checkov, Trivy and the Sonar gate block. Trivy runs with `--ignore-unfixed` (the Debian base image had 44 HIGH findings with no fix). Accepted Checkov findings are suppressed next to the code with a reason (annotations in the manifests, `#checkov:skip` in Terraform). The full record, the on/off procedure and what is parked (NetworkPolicies first) are in `docs/security-gates.md`; keep that file in sync with any suppression.
 - **SonarCloud:** the repo is public, so SonarCloud's free tier analyzes all branches and PRs. Organization `meetbrij`, project key `meetbrij_prod-grade-e2e-devsecops-pipeline`, token in the `SONAR_TOKEN` repo secret. Automatic Analysis is turned off (pipeline-based analysis only) and `qa` is added as a long-lived branch in the project settings. The quality gate blocks the pipeline only when `ENFORCE_SCANS` is `"true"`. The gate applies to new code, so findings from before the swap do not fail it.
 
 ## Open Questions

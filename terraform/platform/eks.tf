@@ -1,4 +1,5 @@
 module "eks" {
+  #checkov:skip=CKV_TF_1:Public registry module pinned by a version constraint; commit-hash pinning is parked
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 21.0"
 
