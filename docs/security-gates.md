@@ -14,7 +14,7 @@ Decision record for the QA pipeline's scanners (`.github/workflows/qa-cicd.yml`)
 | Checkov Terraform | `checkov-terraform` | a check fails on `terraform/` | Skips are inline comments in the `.tf` files |
 | Trivy FS | `trivy-fs` | a HIGH or CRITICAL **fixable** vulnerability in `app/` dependencies | `--ignore-unfixed` |
 | Trivy image | `trivy-image` | a HIGH or CRITICAL **fixable** vulnerability in the built image | `--ignore-unfixed` |
-| SonarCloud | `sonarcloud` | the quality gate on new code fails (`-Dsonar.qualitygate.wait=true`) | New code only, so older findings do not block |
+| SonarCloud | `sonarcloud` | the quality gate on new code fails (`-Dsonar.qualitygate.wait=true`) | New code only, so older findings do not block. The default gate also requires 80% coverage on new code, so the `test` job writes `coverage.xml` and the Sonar job reads it (`sonar.python.coverage.reportPaths`). Current coverage of `app/kyc` is about 88% |
 | Lint and tests | `lint`, `test` | `ruff check .` or `pytest` fails | Always blocking |
 
 The SBOM job only generates an inventory and never blocks.

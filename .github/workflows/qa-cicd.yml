@@ -262,8 +262,19 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
 
-      - name: Run tests
-        run: python -m pytest
+      - name: Run tests with coverage
+        run: python -m pytest --cov --cov-report=xml
+
+      # SonarCloud reads paths relative to the repository root, and the report is relative to
+      # the app directory, so prefix every file path with it.
+      - name: Make coverage paths relative to the repository root
+        run: sed -i 's#<class \(.*\)filename="#<class \1filename="${{ matrix.app }}/#' coverage.xml
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.app }}
+          path: ${{ matrix.app }}/coverage.xml
 
   sonarcloud:
     name: SonarCloud Analysis Report
@@ -274,6 +285,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Download coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-app
+          path: app
 
       # Project settings (keys, sources, exclusions) live in sonar-project.properties.
       # The quality gate only blocks the run when ENFORCE_SCANS is "true";
