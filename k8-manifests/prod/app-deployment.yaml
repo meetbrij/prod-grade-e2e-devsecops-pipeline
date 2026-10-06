@@ -3,6 +3,11 @@ kind: Deployment
 metadata:
   name: nodejs-app
   namespace: prod
+  annotations:
+    checkov.io/skip1: "CKV_K8S_14=Tag is the git SHA, injected by kustomize at deploy time; the committed name is a placeholder"
+    checkov.io/skip2: "CKV_K8S_43=Images are promoted by immutable SHA tag (ECR tags are immutable); a digest would break retag promotion"
+    checkov.io/skip3: "CKV_K8S_35=Secrets arrive via External Secrets envFrom; mounting as files is a later hardening item"
+    checkov.io/skip4: "CKV2_K8S_6=NetworkPolicies are parked; see docs/security-gates.md"
 spec:
   replicas: 2
   strategy:

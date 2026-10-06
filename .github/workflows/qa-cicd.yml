@@ -17,9 +17,9 @@ permissions:
   contents: read
 
 env:
-  # While onboarding the scanners, findings are reported but do not fail the run.
-  # Set to "true" to make Checkov and Trivy block the pipeline on findings.
-  ENFORCE_SCANS: "false"
+  # "true": Checkov, Trivy and the SonarCloud quality gate block the pipeline on findings.
+  # "false": findings are reported only. See docs/security-gates.md before changing this.
+  ENFORCE_SCANS: "true"
   # App-agnostic image name; the tag is always the git commit SHA.
   # Name kept from the original sample app so the ECR repository, manifests and deploy steps
   # stay unchanged when the application is swapped.
@@ -188,7 +188,7 @@ jobs:
             -v "${{ github.workspace }}:/src" -w /src \
             aquasec/trivy:0.57.1 fs \
             --cache-dir /tmp/trivy-cache \
-            --scanners vuln --severity HIGH,CRITICAL --exit-code "$EXIT" \
+            --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code "$EXIT" \
             --format table --output trivy-app.txt app
           cat trivy-app.txt
           { echo '```'; cat trivy-app.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
@@ -320,7 +320,7 @@ jobs:
             aquasec/trivy:0.57.1 image \
             --cache-dir /tmp/trivy-cache \
             --input image.tar \
-            --scanners vuln --severity HIGH,CRITICAL --exit-code "$EXIT" \
+            --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code "$EXIT" \
             --format table --output trivy-image.txt
           cat trivy-image.txt
           { echo '```'; cat trivy-image.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

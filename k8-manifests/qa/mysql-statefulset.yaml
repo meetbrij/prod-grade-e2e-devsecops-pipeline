@@ -3,6 +3,13 @@ kind: StatefulSet
 metadata:
   name: mysql
   namespace: qa
+  annotations:
+    checkov.io/skip1: "CKV_K8S_43=Official mysql image pinned by version tag; digest pinning is parked"
+    checkov.io/skip2: "CKV_K8S_15=The mysql image is pinned to a version tag, so the pull policy default is acceptable"
+    checkov.io/skip3: "CKV_K8S_35=Credentials arrive via External Secrets envFrom; the mysql image reads env vars"
+    checkov.io/skip4: "CKV_K8S_22=The official mysql image writes to its root filesystem; data is on the PVC"
+    checkov.io/skip5: "CKV_K8S_40=Runs as UID 999, the mysql user of the official image; the data directory ownership depends on it"
+    checkov.io/skip6: "CKV2_K8S_6=NetworkPolicies are parked; see docs/security-gates.md"
 spec:
   serviceName: mysql
   replicas: 1

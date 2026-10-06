@@ -1,4 +1,5 @@
 resource "aws_ecr_repository" "app" {
+  #checkov:skip=CKV_AWS_136:AES256 server-side encryption is enabled; a customer-managed KMS key is parked
   name                 = var.ecr_repository_name
   image_tag_mutability = "IMMUTABLE"
 

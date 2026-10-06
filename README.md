@@ -482,10 +482,10 @@ The image, ECR repository and Deployment are still named `nodejs-app`, from the 
 
 - **Bedrock quota:** every Anthropic per-minute quota in this account is 0 (new-account default), so the deployed service returns 502 on uploads and the evaluation cannot run. Increases for Haiku 4.5 are requested; the Sonnet 5 request still needs a retry.
 - **API key is off:** the service supports `X-API-Key`, but the manifests do not set it yet, so `/ui` and the API are open on the public hostnames. That is acceptable only while the quota is zero and only synthetic documents are used. It must be enabled before the first real upload.
-- **Scanners report, they do not block:** `ENFORCE_SCANS` is off, so Checkov and Trivy only report today. Gitleaks is a hard gate. The Sonar quality gate blocks only once enforcement is on.
+- **Scanner suppressions and parked hardening:** the scanners now block (`ENFORCE_SCANS` is on), with each accepted finding suppressed and justified, and Trivy ignores unfixed CVEs. NetworkPolicies, KMS keys, image digests and secrets-as-files are parked. The full decision record, and how to turn the gates on or off, is in [docs/security-gates.md](docs/security-gates.md).
 - **Not yet in place:** NetworkPolicies, PodDisruptionBudgets, and a ServiceMonitor so Prometheus scrapes `/metrics`.
 - **Shared blast radius:** `qa` and `prod` share one cluster, one ALB and two nodes. This is a cost decision, and the isolation boundary is IAM plus namespace RBAC.
-- **Branch protection is deferred:** `qa` may only block force-push and deletion, because the pipeline's bot commits the deployed tag to it.
+- **`qa` protection is deliberately light:** rulesets block force-push and deletion on `qa` and require a PR on `main`, but `qa` cannot require PRs or status checks because the pipeline's bot commits the deployed tag to it. Anyone with write access can still push straight to `qa`.
 - **Region and data-residency note:** the write-up on why `ap-south-1`, and what changes for a UAE bank, is pending the evaluation results.
 
 ## Roadmap
@@ -497,4 +497,6 @@ The image, ECR repository and Deployment are still named `nodejs-app`, from the 
 | Accuracy evaluation | Golden set and runner built; numbers pending | waiting on Bedrock quota |
 | API key | `<env>/kyc-api-key` secret, ExternalSecret and a required env var | next, before any real upload |
 | Region note | Region choice and UAE data-residency changes, with the eval results | pending |
-| Hardening | Enforce scanners, NetworkPolicies, ServiceMonitor, branch protection | deferred |
+| Branch protection | Rulesets on `qa` and `main`, GitHub Environment `prod` with a required reviewer | done |
+| Scanner enforcement | Checkov, Trivy and the Sonar gate block the pipeline ([docs/security-gates.md](docs/security-gates.md)) | done |
+| Hardening | NetworkPolicies, ServiceMonitor | deferred |
