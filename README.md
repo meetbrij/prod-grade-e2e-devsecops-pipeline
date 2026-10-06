@@ -2,7 +2,9 @@
 
 A KYC document extraction service (FastAPI, Amazon Bedrock Claude, MySQL) delivered through a **DevSecOps pipeline**: GitHub Actions with Gitleaks, Checkov, Trivy, SBOM and SonarCloud; secretless AWS access through GitHub OIDC; External Secrets and IRSA; an ALB with Route 53 and ACM; and a Prometheus, Loki, Tempo and Grafana stack. It runs on one AWS EKS cluster with approval-gated promotion from `qa` to `prod`, and it is all provisioned with Terraform.
 
-> **Status:** the platform is live. QA and prod run end to end, including the approval-gated promotion and the observability stack. The extraction service is deployed and its UI works, but **no accuracy evaluation has been run yet**: the AWS account's Bedrock quota for Anthropic models is currently zero, so uploads return 502 until an increase is approved. This README therefore contains **no accuracy numbers**. They will appear only when they come from a file committed in `app/eval/results/`.
+> **Status:** the platform is live. QA and prod run end to end, including the approval-gated promotion, blocking security scanners and the observability stack. The extraction service is deployed and its UI works, but **no accuracy evaluation has been run yet**: the AWS account's Bedrock quota for Anthropic models is currently zero, so uploads return 502 until an increase is approved. This README therefore contains **no accuracy numbers**. They will appear only when they come from a file committed in `app/eval/results/`.
+
+**Contents:** [Intro](#intro) · [What it does](#what-it-does) · [Application](#application) · [Tech Stack](#tech-stack) · [Architecture](#architecture) · [Branching](#branching-strategy) · [CI/CD](#cicd-pipelines) · [Environments](#environments-and-access) · [Terraform](#infrastructure-as-code-terraform) · [Evaluation](#evaluation) · [Local development](#local-development) · [Operations](#operations) · [Known gaps and trade-offs](#known-gaps-and-trade-offs) · [Documentation](#documentation) · [Roadmap](#roadmap)
 
 ## Intro
 
@@ -188,7 +190,7 @@ flowchart LR
     IAMB -. AssumeRoleWithWebIdentity .-> SAA
 ```
 
-Terraform creates the secret shell and the IAM roles but never the password values, which are set out-of-band so they never land in Terraform state. **Secret values are write-once:** MySQL reads its passwords only on first start, so overwriting a value later breaks the next app pod. The recovery and rotation procedures are in [terraform/README.md](terraform/README.md). Images are pulled from ECR using the node group's IAM role, so no image pull secret exists.
+Terraform creates the secret shell and the IAM roles but never the password values, which are set out-of-band so they never land in Terraform state. **Secret values are write-once:** MySQL reads its passwords only on first start, so overwriting a value later breaks the next app pod. The recovery and rotation procedures are in the [runbook](docs/runbook.md#secrets). Images are pulled from ECR using the node group's IAM role, so no image pull secret exists.
 
 ### Observability
 
@@ -380,7 +382,7 @@ flowchart TD
     Z[(Existing Route 53 hosted zone<br/>referenced as data source)] -.-> P
 ```
 
-Each stack has its own remote state in S3 with native locking, so qa and prod can be applied or destroyed independently of each other and of the shared platform. `terraform destroy` only removes what Terraform created. The hosted zone is a data source and is never touched. The runbook (apply order, pause and resume, secret rotation, destroy safety) is in [terraform/README.md](terraform/README.md).
+Each stack has its own remote state in S3 with native locking, so qa and prod can be applied or destroyed independently of each other and of the shared platform. `terraform destroy` only removes what Terraform created. The hosted zone is a data source and is never touched. The build order and what each stack creates are in [terraform/README.md](terraform/README.md); pause and resume, secret rotation and destroy safety are in the [runbook](docs/runbook.md); what the infrastructure looks like is in [eks-explained](docs/eks-explained.md).
 
 ### Manual DNS step (one-time per hostname)
 
@@ -429,6 +431,7 @@ app/
   kyc/                   FastAPI service (extraction, validation, storage, PII-safe logging, review page)
   tests/                 pytest suite (no AWS or MySQL needed)
   eval/                  Golden set generator, scoring and the Haiku vs Sonnet accuracy runner
+docs/                    Runbook, troubleshooting, decision log, security gates, EKS explained
 Dockerfile               Multi-stage Python image; non-root (UID 10001), port 5000
 sonar-project.properties SonarCloud project config
 k8-manifests/
@@ -478,15 +481,58 @@ The image, ECR repository and Deployment are still named `nodejs-app`, from the 
 - **For live extraction:** an AWS account with Amazon Bedrock access to Claude Haiku 4.5 and a non-zero quota (see Known gaps).
 - **To deploy:** an AWS account (region `ap-south-1`) and credentials to apply the Terraform stacks once, a registered domain with a Route 53 hosted zone, a GitHub repository with Actions, a SonarCloud project, Terraform 1.10 or later, `kubectl` and the AWS CLI. After the first apply, the pipeline uses OIDC only.
 
-## Known gaps
+## Known gaps and trade-offs
 
-- **Bedrock quota:** every Anthropic per-minute quota in this account is 0 (new-account default), so the deployed service returns 502 on uploads and the evaluation cannot run. Increases for Haiku 4.5 are requested; the Sonnet 5 request still needs a retry.
-- **API key is off:** the service supports `X-API-Key`, but the manifests do not set it yet, so `/ui` and the API are open on the public hostnames. That is acceptable only while the quota is zero and only synthetic documents are used. It must be enabled before the first real upload.
-- **Scanner suppressions and parked hardening:** the scanners now block (`ENFORCE_SCANS` is on), with each accepted finding suppressed and justified, and Trivy ignores unfixed CVEs. NetworkPolicies, KMS keys, image digests and secrets-as-files are parked. The full decision record, and how to turn the gates on or off, is in [docs/security-gates.md](docs/security-gates.md).
-- **Not yet in place:** NetworkPolicies, PodDisruptionBudgets, and a ServiceMonitor so Prometheus scrapes `/metrics`.
-- **Shared blast radius:** `qa` and `prod` share one cluster, one ALB and two nodes. This is a cost decision, and the isolation boundary is IAM plus namespace RBAC.
-- **`qa` protection is deliberately light:** rulesets block force-push and deletion on `qa` and require a PR on `main`, but `qa` cannot require PRs or status checks because the pipeline's bot commits the deployed tag to it. Anyone with write access can still push straight to `qa`.
-- **Region and data-residency note:** the write-up on why `ap-south-1`, and what changes for a UAE bank, is pending the evaluation results.
+Two kinds of limitation, kept apart on purpose:
+
+- **Gap:** something that is missing or unfinished and should exist before this is used for real. Each has a plan.
+- **Trade-off:** a deliberate choice that gives something up (usually cost or simplicity) and that I would defend today. Each says what would make me change it.
+
+The reasoning behind the trade-offs is in the [decision log](docs/decisions.md).
+
+| Item | Type | What it means | Plan or trigger to revisit |
+|---|---|---|---|
+| **Bedrock quota is zero** | Gap | Uploads return 502 and the evaluation cannot run. Requests for Haiku 4.5 are open with AWS; Sonnet 5 still needs one | Waiting on AWS; then run the eval |
+| **No accuracy numbers** | Gap | The golden set and runner exist, but no result has been committed | Run `eval.run` once the quota applies |
+| **API key not enabled** | Gap | `/ui` and the API are open on the public hostnames. Acceptable only while the quota is zero and only synthetic documents are used | Enable `<env>/kyc-api-key` before the first real upload |
+| **No NetworkPolicies or PodDisruptionBudgets** | Gap | Any pod can reach any other pod, and a node drain can take all replicas down | Test a default-deny policy in QA first ([security-gates.md](docs/security-gates.md)) |
+| **No `/metrics` scraping or alert receivers** | Gap | The service exposes metrics, but Prometheus does not collect them, and Alertmanager notifies nobody | Add a ServiceMonitor and a receiver |
+| **Rollback not rehearsed** | Gap | The procedure is documented in the [runbook](docs/runbook.md#roll-back) but has not been exercised | Try it once in QA |
+| **Region and UAE-bank note pending** | Gap | The write-up on why `ap-south-1`, and what changes for a UAE bank, waits for the results | Written after the eval |
+| **One cluster, one ALB, one NAT gateway** | Trade-off | `qa` and `prod` share a control plane, nodes and blast radius; isolation is IAM, namespaces and quotas. Saves roughly the cost of a second cluster | Real production traffic or a hard-isolation requirement |
+| **Public EKS API endpoint** | Trade-off | GitHub-hosted runners have no fixed IPs, so the API is open to the internet and protected by IAM | Self-hosted runners with fixed IPs |
+| **`qa` branch protection is light** | Trade-off | Force-push and deletion are blocked, but PRs cannot be required because the pipeline's bot pushes the deployed tag to `qa` | A ruleset that lets the `github-actions` app bypass |
+| **Scanners block, with suppressions and `--ignore-unfixed`** | Trade-off | Accepted findings are suppressed with a written reason, and CVEs with no available fix do not block | Reviewed with [security-gates.md](docs/security-gates.md) |
+| **No Semgrep, cosign or Kyverno** | Trade-off | Optional hardening skipped to keep the pipeline simple; images are not signed | Supply-chain requirements |
+| **Uploaded files are never stored** | Trade-off | Minimal data held, but a document cannot be re-processed later | A re-processing requirement |
+| **Single-instance Loki and Tempo on EBS, 15 days** | Trade-off | One pod failure means a gap in logs or traces; no S3 backend | Longer retention or higher availability needs |
+| **Manual DNS aliases and manual Terraform apply** | Trade-off | Fewer moving parts for two hostnames and rare changes | More hostnames or more contributors |
+| **Docs-only changes skip the pipeline** | Trade-off | A secret committed in a Markdown-only change is caught only by the next full run | Revisit if the repo gets more contributors |
+| **Image and ECR repository still named `nodejs-app`** | Trade-off | A misleading name, kept so the swap changed no pipeline or Terraform | A deliberate rename PR |
+
+## Operations
+
+The step-by-step procedures are in the [runbook](docs/runbook.md). In short:
+
+- **Release:** merge a feature PR into `qa` (it deploys to the QA namespace), check `/healthz` and `/ui`, then open a PR from `qa` to `main` with a merge commit. The prod pipeline pauses for your approval and shows which image it will promote.
+- **Pause to save cost:** scale the node group to zero; resume the same way. Pausing saves the nodes only, roughly a third of the running cost.
+- **Secrets:** set once per environment and never overwritten; the recovery and rotation steps are in the runbook.
+- **Something broke:** start from the symptom table in [troubleshooting](docs/troubleshooting.md).
+- **A scanner blocked a merge:** see [security-gates.md](docs/security-gates.md).
+
+## Documentation
+
+| Document | Contents |
+|---|---|
+| [docs/README.md](docs/README.md) | Index of all documentation |
+| [terraform/README.md](terraform/README.md) | The stacks, what each creates, the build order and conventions |
+| [docs/runbook.md](docs/runbook.md) | Release, promote, roll back, pause and resume, secrets, destroy |
+| [docs/troubleshooting.md](docs/troubleshooting.md) | Symptoms, causes and fixes for problems this project has hit |
+| [docs/security-gates.md](docs/security-gates.md) | What blocks the pipeline, every suppression and how to turn gates on or off |
+| [docs/decisions.md](docs/decisions.md) | Why each choice was made and what it costs |
+| [docs/eks-explained.md](docs/eks-explained.md) | Kubernetes and EKS concepts, with diagrams of what runs where |
+| [app/eval/README.md](app/eval/README.md) | The accuracy evaluation |
+| [CLAUDE.md](CLAUDE.md) | Rules and the app contract for AI coding assistants |
 
 ## Roadmap
 

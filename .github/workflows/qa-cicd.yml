@@ -4,13 +4,21 @@ name: QA CI/CD Pipeline
 # parallel, lint + tests, SonarCloud analysis, Docker build, then Trivy image scan
 # + SBOM in parallel, then (push to qa only) ECR push and EKS deploy.
 
+# Documentation-only changes (Markdown files and docs/) do not run the pipeline. A change
+# that touches anything else, even together with docs, runs it in full.
 on:
   pull_request:
     branches:
       - qa
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
   push:
     branches:
       - qa
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
   workflow_dispatch:
 
 permissions:
