@@ -25,7 +25,7 @@ variable "namespace" {
 }
 
 variable "storage_class" {
-  description = "StorageClass for the stack's volumes. ebs-sc-retain keeps the data if a claim is deleted (logs are needed by a later project)."
+  description = "StorageClass for the stack's volumes. ebs-sc-retain keeps the volume if a claim is deleted. The live PVs were patched to Delete; use ebs-sc on a fresh install."
   type        = string
   default     = "ebs-sc-retain"
 }
