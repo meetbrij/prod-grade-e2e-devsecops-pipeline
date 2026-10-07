@@ -256,8 +256,9 @@ class AnthropicExtractor:
     ) -> ExtractionResult:
         request = {
             "model": self._model_id,
+            # No `temperature`: the current SDK does not accept it for this call. The forced tool
+            # call and the strict schema keep the output structured.
             "max_tokens": 1024,
-            "temperature": 0,
             "system": SYSTEM_PROMPT,
             "tools": [
                 {
