@@ -50,8 +50,8 @@ A suppression must always carry its reason in the same place as the skip. Never 
 
 | Check | Where | Reason |
 |---|---|---|
-| CKV_AWS_149 | app-env secret | Default AWS-managed key is enough; a customer-managed KMS key adds cost |
-| CKV2_AWS_57 | app-env secret | The secret is write-once: MySQL reads it only at first start, so automatic rotation would break the app |
+| CKV_AWS_149 | app-env secrets (all three) | Default AWS-managed key is enough; a customer-managed KMS key adds cost |
+| CKV2_AWS_57 | app-env secrets | `mysql-secret` is write-once (MySQL reads it only at first start, so rotation would break the app). `kyc-api-key` is rotated by hand, and `llm-api-key` is a third-party key AWS cannot rotate |
 | CKV_AWS_136 | ECR repository | AES256 encryption is on; a customer-managed key is parked |
 | CKV_TF_1 | `eks`, `vpc` modules | Public registry modules pinned by version constraint; commit-hash pinning is parked |
 | CKV_AWS_18, 144, 2_AWS_62 | state bucket | Access logging, cross-region replication and event notifications are not worth it for a single-user state bucket; CloudTrail records the API calls |

@@ -6,8 +6,8 @@ EXTRACTIONS = Counter("kyc_extractions_total", "Documents processed", ["document
 FLAGGED_FIELDS = Counter(
     "kyc_flagged_fields_total", "Fields flagged for human review", ["document_type", "reason"]
 )
-BEDROCK_LATENCY = Histogram(
-    "kyc_bedrock_latency_seconds",
-    "Time spent in the Bedrock call",
+LLM_LATENCY = Histogram(
+    "kyc_llm_latency_seconds",
+    "Time spent in the model call",
     buckets=(0.5, 1, 2, 3, 5, 8, 13, 21, 34),
 )

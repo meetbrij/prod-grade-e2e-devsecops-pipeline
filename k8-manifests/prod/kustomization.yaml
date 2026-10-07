@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
   - secretstore.yaml
   - external-secret.yaml
+  - external-secret-kyc.yaml
   - mysql-svc.yaml
   - mysql-statefulset.yaml
   - app-deployment.yaml

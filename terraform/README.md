@@ -24,7 +24,8 @@ Each stack has its own state in S3 (one bucket, one key per stack, native lockin
 | Namespace | The environment's home. Pod Security: `baseline` enforced, `restricted` warns. |
 | ResourceQuota and LimitRange | Caps total CPU, memory, pods and storage so one environment cannot starve the other. The LimitRange gives containers default requests and limits. |
 | Secrets Manager secret `<env>/mysql-secret` | An empty container. The values are set by you, never by Terraform (see the [runbook](../docs/runbook.md#secrets)). |
-| IAM role `devsecops-eks-<env>-eso` and service account `<env>/eso` | Lets External Secrets read only that environment's secret. |
+| Secrets Manager secrets `<env>/kyc-api-key` and `<env>/llm-api-key` | Empty containers for the service's `X-API-Key` and the Anthropic API key. Values set by you. |
+| IAM role `devsecops-eks-<env>-eso` and service account `<env>/eso` | Lets External Secrets read only that environment's three secrets. |
 | IAM role `devsecops-eks-<env>-kyc-app` and service account `<env>/kyc-app` | Lets the KYC service call Amazon Bedrock through IRSA, limited to the two India-only `in.` inference profiles and their underlying models. |
 | IAM role `devsecops-eks-<env>-github-deploy` | Assumed by GitHub Actions through OIDC. QA trusts the `qa` branch and can push to ECR; prod trusts the GitHub Environment `prod` and can only retag images. |
 | EKS access entry for that role | Edit rights inside that namespace only, plus a namespaced Role for External Secrets objects. Nothing else in the cluster. |

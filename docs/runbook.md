@@ -119,6 +119,53 @@ Change it in both places, in this order:
 
 The role ARNs are repository **variables**, not secrets: Settings, Secrets and variables, Actions, Variables. `AWS_ROLE_TO_ASSUME_QA` and `AWS_ROLE_TO_ASSUME_PROD` hold the value of `terraform output deploy_role_arn` from `envs/qa` and `envs/prod`. The prod role also needs the GitHub Environment `prod` (Settings, Environments), with a required reviewer and deployment limited to the `main` branch.
 
+## The KYC service keys and the model provider
+
+Two more secrets per environment, set by hand once (Terraform creates only the empty containers):
+
+| Secret | Holds | Read by |
+|---|---|---|
+| `<env>/kyc-api-key` | The `X-API-Key` that clients (including the review page) must send | Pod env `KYC_API_KEY`. **Not optional**: without the secret the pod does not start, so the API is never open |
+| `<env>/llm-api-key` | The Anthropic API key, used only while `LLM_PROVIDER=anthropic` | Pod env `ANTHROPIC_API_KEY` |
+
+Set the service key (generated, stored without printing it):
+
+```bash
+aws secretsmanager put-secret-value --region ap-south-1 --secret-id <env>/kyc-api-key \
+  --secret-string "$(openssl rand -base64 32 | tr -d '/+=')"
+```
+
+Read it back when you need it for the review page or a request:
+
+```bash
+aws secretsmanager get-secret-value --region ap-south-1 --secret-id <env>/kyc-api-key --query SecretString --output text
+```
+
+Set the Anthropic key. `read -s` keeps it out of your shell history and off the screen:
+
+```bash
+printf "Anthropic API key: "; read -s KEY; echo
+aws secretsmanager put-secret-value --region ap-south-1 --secret-id <env>/llm-api-key --secret-string "$KEY"
+unset KEY
+```
+
+Values must exist **before** the deploy that references them. Otherwise External Secrets cannot create the Kubernetes Secret and the new pod stays in `CreateContainerConfigError` (the old pod keeps serving). To change a key later, store the new value, force the sync and restart:
+
+```bash
+kubectl annotate externalsecret kyc-api-key llm-api-key -n <env> force-sync=$(date +%s) --overwrite
+kubectl rollout restart deployment/nodejs-app -n <env>
+```
+
+### Switch the model provider
+
+The provider is the `LLM_PROVIDER` variable in `k8-manifests/<env>/app-deployment.yaml`: `anthropic` for the demo, `bedrock` for data residency (see [data-residency.md](data-residency.md)). Change it through a normal PR. For a quick test without a PR, `kubectl set env deployment/nodejs-app -n <env> LLM_PROVIDER=bedrock` works until the next deploy puts the manifest value back.
+
+Check which one is active from the log line written at start:
+
+```bash
+kubectl logs deployment/nodejs-app -n <env> | grep "service started"
+```
+
 ## Observability
 
 Grafana is not exposed to the internet. Open it with a port-forward; the steps, the admin password and what to look at are in the main README under [Using Grafana](../README.md#using-grafana). Retention is 15 days for logs, metrics and traces.

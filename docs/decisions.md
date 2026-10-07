@@ -36,13 +36,14 @@ The choices behind this project, with the reason and what each one costs. Most a
 | **Secret values are set by hand, once**; Terraform creates only the empty container | Values in Terraform would end up in state | A manual step per environment |
 | **Secret values are write-once** | MySQL reads its passwords only on first start with an empty volume | Rotation needs `ALTER USER` first (see the [runbook](runbook.md#secrets)) |
 | **One IAM role and service account per environment** for External Secrets | The qa role can never read the prod secret | More roles to manage |
-| **API key for the KYC service not enabled yet** | Deferred until uploads work and real documents are possible | The public endpoint is open; acceptable only with a zero quota and synthetic documents |
+| **`X-API-Key` required on the KYC service**, from `<env>/kyc-api-key`; the pod will not start without it | The public endpoint spends real money once a model key exists | Clients and the review page must send the key; rotation is by hand |
 
 ## The KYC service
 
 | Decision | Why | What it costs |
 |---|---|---|
 | **Uploaded files are never stored**; only a SHA-256 hash, the fields and the scores | Minimizes personal data held | A document cannot be re-processed or re-inspected later |
+| **A provider switch (`LLM_PROVIDER`): Anthropic API for the demo, Bedrock for residency** | The Bedrock quota for this account is zero and could not be raised in time. Both providers share the prompt, schema and scoring, so switching is one setting | The demo sends synthetic documents to a third party; Bedrock is not yet exercised end to end. See [data-residency.md](data-residency.md) |
 | **India-only `in.` inference profiles**, never `global.` | Inference stays in `ap-south-1` and `ap-south-2` | Fewer regions to absorb load; separate quotas |
 | **Haiku 4.5 by default**, Sonnet 5 for comparison | Cheaper and faster; the eval will show whether it is accurate enough | Possibly lower accuracy, to be measured |
 | **Minimal review workflow**: flag, then confirm or correct a field | Enough to show human-in-the-loop | No assignment, audit trail or queue prioritization |
@@ -61,6 +62,6 @@ The choices behind this project, with the reason and what each one costs. Most a
 
 ## Data residency
 
-The write-up on why `ap-south-1` was chosen, and what changes for a UAE bank (for example `me-central-1` and UAE data-protection rules), is pending the evaluation results. It will live in its own document and be linked from here.
+See [data-residency.md](data-residency.md) for the provider switch, why the demo uses the Anthropic API, and what changes for a bank with residency requirements.
 
 Back to the [documentation index](README.md).

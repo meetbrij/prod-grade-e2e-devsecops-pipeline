@@ -8,6 +8,9 @@ Problems this project has actually hit, each with the symptom, the cause and the
 | Deploy job: `forbidden` on `externalsecrets` or `secretstores` | [External Secrets permissions](#deploy-forbidden-on-externalsecrets) |
 | App pod: `Access denied for user` | [Overwritten secret](#app-pod-fails-with-access-denied) |
 | Uploads return 502, or `eval.run` shows `ThrottlingException` | [Bedrock quota](#uploads-return-502-or-the-eval-throttles) |
+| Uploads return 401 | [API key](#uploads-or-the-review-page-return-401) |
+| New pod stuck in `CreateContainerConfigError` | [Missing secret](#new-pod-stuck-in-createcontainerconfigerror) |
+| Pod exits at start with `ANTHROPIC_API_KEY is required` | [Provider config](#pod-exits-at-start-with-anthropic_api_key-is-required) |
 | A scanner job fails the pipeline | [Scanner gates](#a-scanner-job-fails-the-pipeline) |
 | Terraform: `the server has asked for the client to provide credentials` | [Expired token](#terraform-apply-fails-midway-with-client-credentials) |
 | A Helm release is stuck `pending-install` | [Stuck Helm release](#a-helm-release-is-stuck-in-pending-install) |
@@ -52,6 +55,28 @@ aws service-quotas get-service-quota --region ap-south-1 --service-code bedrock 
 ```
 
 Codes: `L-CCA5DF70` Haiku 4.5 requests per minute, `L-58BE175A` Haiku 4.5 tokens per minute, `L-D4FBCF4E` Sonnet 5 tokens per minute. A request with status `CASE_OPENED` is waiting on an AWS support case, not approved. Make sure you look at `ap-south-1`. Other error codes name the cause: `AccessDeniedException` means the IAM policy or the model access, `ValidationException` usually a wrong model or profile ID.
+
+## Uploads or the review page return 401
+
+**Cause:** the service requires `X-API-Key`. The review page has a key field (kept only in the browser's session storage); API clients send the header.
+
+**Fix:** read the key (see the [runbook](runbook.md#the-kyc-service-keys-and-the-model-provider)) and enter it in the page or send `-H "X-API-Key: <key>"`. If it is correct and still fails, the pod may be holding an older value: force the sync and restart.
+
+## New pod stuck in CreateContainerConfigError
+
+**Cause:** the pod references the Secret `kyc-api-key` (and optionally `llm-api-key`), which External Secrets creates only after the Secrets Manager secret has a value. This is the expected result of deploying before setting the values; the old pod keeps serving.
+
+**Fix:** set the values as in the [runbook](runbook.md#the-kyc-service-keys-and-the-model-provider), then force the sync: `kubectl annotate externalsecret kyc-api-key llm-api-key -n <env> force-sync=$(date +%s) --overwrite`. The pod starts by itself. Check with `kubectl describe externalsecret kyc-api-key -n <env>`.
+
+## Pod exits at start with ANTHROPIC_API_KEY is required
+
+**Cause:** `LLM_PROVIDER=anthropic` but the key is empty. The service stops at start on purpose rather than falling back to another provider.
+
+**Fix:** set `<env>/llm-api-key` and sync, or set `LLM_PROVIDER=bedrock`. An unknown `LLM_PROVIDER` value also stops the service; the message names the allowed values.
+
+## Uploads return 502 with the Anthropic provider
+
+The pod log shows the error class only, for example `anthropic call failed: AuthenticationError` (wrong or revoked key), `RateLimitError` (too many requests) or `BadRequestError` (often an exhausted credit balance or an invalid model name). Check the credit balance and the key in the Anthropic console.
 
 ## A scanner job fails the pipeline
 

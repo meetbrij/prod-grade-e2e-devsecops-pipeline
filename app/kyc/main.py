@@ -20,7 +20,7 @@ from sqlalchemy.engine import Engine
 
 from kyc import db, metrics
 from kyc.config import Settings, load_settings
-from kyc.extraction import BedrockExtractor, ExtractionError, Extractor
+from kyc.extraction import ExtractionError, Extractor, build_extractor
 from kyc.pii import configure_logging
 from kyc.schemas import FIELD_SPECS, DocumentType, format_problem
 from kyc.telemetry import setup_tracing
@@ -116,8 +116,11 @@ def create_app(
             db.wait_for_db(eng, cfg.db_connect_timeout_seconds)
         db.init_schema(eng)
         app.state.engine = eng
-        app.state.extractor = extractor or BedrockExtractor.from_settings(cfg)
-        log.info("service started", extra={"model_id": cfg.bedrock_model_id})
+        app.state.extractor = extractor or build_extractor(cfg)
+        log.info(
+            "service started",
+            extra={"model_id": cfg.active_model_id, "provider": cfg.llm_provider},
+        )
         yield
 
     app = FastAPI(title="KYC Document Intelligence", version="0.1.0", lifespan=lifespan)
@@ -191,7 +194,7 @@ def create_app(
         )
         flagged = [f for f in result.fields if f.needs_review]
         metrics.EXTRACTIONS.labels(document_type.value, "flagged" if flagged else "ok").inc()
-        metrics.BEDROCK_LATENCY.observe(result.latency_ms / 1000)
+        metrics.LLM_LATENCY.observe(result.latency_ms / 1000)
         for f in flagged:
             metrics.FLAGGED_FIELDS.labels(document_type.value, f.reason or "unknown").inc()
         # Only identifiers and counts are logged, never field values.
