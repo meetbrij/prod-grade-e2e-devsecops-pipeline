@@ -7,6 +7,16 @@ output "secret_name" {
   value       = aws_secretsmanager_secret.mysql.name
 }
 
+output "kyc_api_key_secret_name" {
+  description = "Secrets Manager secret holding the X-API-Key clients must send. Populate manually."
+  value       = aws_secretsmanager_secret.kyc_api_key.name
+}
+
+output "llm_api_key_secret_name" {
+  description = "Secrets Manager secret holding the Anthropic API key. Populate manually."
+  value       = aws_secretsmanager_secret.llm_api_key.name
+}
+
 output "eso_service_account" {
   description = "Service account the SecretStore in this namespace should reference."
   value       = kubernetes_service_account_v1.eso.metadata[0].name

@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
   - secretstore.yaml
   - external-secret.yaml
+  - external-secret-kyc.yaml
   - mysql-svc.yaml
   - mysql-statefulset.yaml
   - app-deployment.yaml
@@ -14,4 +15,4 @@ resources:
 images:
   - name: nodejs-app
     newName: nodejs-app
-    newTag: "85fdef79b24f34f39a6371bf220a2cc208feb84c"
+    newTag: "8c58859c703ce40c5cad9e2d15d93a3e86b8a5d4"

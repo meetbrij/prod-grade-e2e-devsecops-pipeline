@@ -3,6 +3,11 @@ kind: Deployment
 metadata:
   name: nodejs-app
   namespace: prod
+  annotations:
+    checkov.io/skip1: "CKV_K8S_14=Tag is the git SHA, injected by kustomize at deploy time; the committed name is a placeholder"
+    checkov.io/skip2: "CKV_K8S_43=Images are promoted by immutable SHA tag (ECR tags are immutable); a digest would break retag promotion"
+    checkov.io/skip3: "CKV_K8S_35=Secrets arrive via External Secrets envFrom; mounting as files is a later hardening item"
+    checkov.io/skip4: "CKV2_K8S_6=NetworkPolicies are parked; see docs/security-gates.md"
 spec:
   replicas: 2
   strategy:
@@ -63,6 +68,27 @@ spec:
             # India-only inference profile: inference stays in ap-south-1 / ap-south-2.
             - name: BEDROCK_MODEL_ID
               value: in.anthropic.claude-haiku-4-5-20251001-v1:0
+            # Which model API answers. `anthropic` is the demo setting (documents leave AWS, so
+            # use synthetic ones only). For data residency set LLM_PROVIDER=bedrock: nothing else
+            # changes, the IRSA role and the India-only profile above are already in place.
+            - name: LLM_PROVIDER
+              value: anthropic
+            - name: ANTHROPIC_MODEL
+              value: claude-haiku-4-5
+            # Only needed while LLM_PROVIDER=anthropic; the service refuses to start without it.
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: llm-api-key
+                  key: ANTHROPIC_API_KEY
+                  optional: true
+            # Not optional: if the secret is missing the pod does not start, so the API is never
+            # exposed without its key (fails closed).
+            - name: KYC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: kyc-api-key
+                  key: KYC_API_KEY
             - name: LOG_LEVEL
               value: INFO
             # Traces go to Tempo (OTLP over HTTP).

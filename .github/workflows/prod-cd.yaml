@@ -8,10 +8,15 @@ name: Production CD Pipeline
 #   promote-and-deploy  waits for approval (GitHub Environment "prod"), retags the
 #                       image in ECR, deploys, and waits for the rollout
 
+# A merge to main that only changes documentation (Markdown files and docs/) does not
+# deploy. Any other change, even together with docs, does.
 on:
   push:
     branches:
       - main
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
   # Manual re-run (for example after a failed deploy). Still requires approval.
   workflow_dispatch:
 

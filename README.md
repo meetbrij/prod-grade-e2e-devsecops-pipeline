@@ -1,8 +1,10 @@
 # KYC Document Intelligence on AWS EKS
 
-A KYC document extraction service (FastAPI, Amazon Bedrock Claude, MySQL) delivered through a **DevSecOps pipeline**: GitHub Actions with Gitleaks, Checkov, Trivy, SBOM and SonarCloud; secretless AWS access through GitHub OIDC; External Secrets and IRSA; an ALB with Route 53 and ACM; and a Prometheus, Loki, Tempo and Grafana stack. It runs on one AWS EKS cluster with approval-gated promotion from `qa` to `prod`, and it is all provisioned with Terraform.
+A KYC document extraction service (FastAPI, Claude through Amazon Bedrock or the Anthropic API, MySQL) delivered through a **DevSecOps pipeline**: GitHub Actions with Gitleaks, Checkov, Trivy, SBOM and SonarCloud; secretless AWS access through GitHub OIDC; External Secrets and IRSA; an ALB with Route 53 and ACM; and a Prometheus, Loki, Tempo and Grafana stack. It runs on one AWS EKS cluster with approval-gated promotion from `qa` to `prod`, and it is all provisioned with Terraform.
 
-> **Status:** the platform is live. QA and prod run end to end, including the approval-gated promotion and the observability stack. The extraction service is deployed and its UI works, but **no accuracy evaluation has been run yet**: the AWS account's Bedrock quota for Anthropic models is currently zero, so uploads return 502 until an increase is approved. This README therefore contains **no accuracy numbers**. They will appear only when they come from a file committed in `app/eval/results/`.
+> **Status:** the platform is live. QA and prod run end to end, including the approval-gated promotion, blocking security scanners and the observability stack. The extraction service is deployed behind an API key and its UI works. **The live demo answers through the Anthropic API** because this AWS account's Bedrock quota is currently zero; the platform is built for Bedrock and switching is one setting (see [Model providers and data residency](#model-providers-and-data-residency)). **No accuracy evaluation has been run yet**, so this README contains **no accuracy numbers**. They will appear only when they come from a file committed in `app/eval/results/`.
+
+**Contents:** [Intro](#intro) · [What it does](#what-it-does) · [Application](#application) · [Tech Stack](#tech-stack) · [Architecture](#architecture) · [Branching](#branching-strategy) · [CI/CD](#cicd-pipelines) · [Environments](#environments-and-access) · [Terraform](#infrastructure-as-code-terraform) · [Evaluation](#evaluation) · [Local development](#local-development) · [Operations](#operations) · [Model providers](#model-providers-and-data-residency) · [Known gaps and trade-offs](#known-gaps-and-trade-offs) · [Documentation](#documentation) · [Roadmap](#roadmap)
 
 ## Intro
 
@@ -22,7 +24,7 @@ Seven steps from upload to a reviewed record. A person is in the loop at step 6,
 | # | Step | What happens |
 |---|---|---|
 | 1 | **Upload** | `POST /documents` with an ID document or proof of address (PNG, JPEG or PDF). The file type is checked by its magic bytes, not its extension, and the size is capped. |
-| 2 | **Extract** | The file is sent to Claude on Amazon Bedrock through the Converse API. The model is forced to answer through one tool schema, so the output is structured fields rather than free text. |
+| 2 | **Extract** | The file is sent to Claude, through Amazon Bedrock (Converse API) or the Anthropic API, whichever `LLM_PROVIDER` selects. The model is forced to answer through one tool schema, so the output is structured fields rather than free text. |
 | 3 | **Validate** | Each field is checked against its spec (formats, dates, cross-checks such as expiry after birth). Missing or malformed fields are marked. |
 | 4 | **Score and flag** | Every field gets a confidence score. Below the threshold (default 0.85), missing or malformed means `needs_review`. |
 | 5 | **Store** | MySQL keeps a SHA-256 hash of the upload, the extracted fields and the scores. The file itself is **never stored**. |
@@ -35,7 +37,7 @@ Seven steps from upload to a reviewed record. A person is in the loop at step 6,
 flowchart TD
     START([Upload: ID document or proof of address]) --> check{Type, size and<br/>API key OK?}
     check -->|no| REJ([4xx error])
-    check -->|yes| extract["Bedrock Converse call<br/>forced tool schema<br/>India-only inference profile"]
+    check -->|yes| extract["Claude call, forced tool schema<br/>Bedrock (India-only profile)<br/>or Anthropic API"]
     extract -->|throttled or unavailable| ERR([502, error code only])
     extract --> validate[Validate fields<br/>formats, dates, cross-checks]
     validate --> score[Score each field<br/>flag low confidence, missing, malformed]
@@ -54,8 +56,8 @@ One container image, one Deployment per environment.
 
 | Piece | Technology |
 |-------|------------|
-| Service | Python 3.12, FastAPI, SQLAlchemy, boto3 (Bedrock Converse API) |
-| Model | Claude Haiku 4.5 by default, Sonnet 5 for the accuracy comparison, through India-only inference profiles (`in.` prefix): inference stays in `ap-south-1` and `ap-south-2` |
+| Service | Python 3.12, FastAPI, SQLAlchemy, boto3 (Bedrock Converse API), the Anthropic SDK |
+| Model | Claude Haiku 4.5 by default, Sonnet 5 for the accuracy comparison. On Bedrock through India-only inference profiles (`in.` prefix), inference stays in `ap-south-1` and `ap-south-2`. The demo uses the same models through the Anthropic API |
 | Database | MySQL 8.0 StatefulSet (tables `documents` and `extractions`) |
 | Review page | Built-in vanilla HTML and JS at `/ui`, with a strict Content Security Policy; values are rendered as text only |
 | Observability | Prometheus metrics at `/metrics`, OpenTelemetry traces to Tempo, JSON logs to Loki |
@@ -64,7 +66,7 @@ One container image, one Deployment per environment.
 
 **Key behaviours**
 - **Flag, don't guess:** a field is never silently trusted. Low confidence, missing and malformed values all go to review.
-- **Fail loudly and safely:** a Bedrock error becomes a 502 whose message is the AWS error code only, never document data. `/healthz` returns 503 when MySQL is unreachable, and the service waits up to 90 seconds for MySQL at start.
+- **Fail loudly and safely:** a model-provider error becomes a 502 whose message is the error code or class only, never document data. `/healthz` returns 503 when MySQL is unreachable, and the service waits up to 90 seconds for MySQL at start.
 - **Optional API key:** when `KYC_API_KEY` is set, uploads and the review API require an `X-API-Key` header. It is **not enabled yet** (see Known gaps).
 
 **Privacy by design**
@@ -81,7 +83,8 @@ One container image, one Deployment per environment.
 | Tool | What it is and why it is here |
 |------|-------------------------------|
 | Python 3.12, FastAPI | The API, the review page and the health and metrics endpoints |
-| Amazon Bedrock (Claude Haiku 4.5, Sonnet 5) | Reads images and PDFs and extracts fields against a schema; keyless access through IRSA |
+| Amazon Bedrock (Claude Haiku 4.5, Sonnet 5) | The intended model route: reads images and PDFs and extracts fields against a schema; keyless access through IRSA |
+| Anthropic API (same models) | The current demo route while the Bedrock quota is zero; needs an API key kept in Secrets Manager. Synthetic documents only |
 | SQLAlchemy Core, PyMySQL | Storage for documents and extractions; the app creates its own tables at start |
 | prometheus-client, OpenTelemetry | Metrics at `/metrics` and traces to Tempo |
 | pytest, ruff | 49 offline tests (no AWS or MySQL needed) and linting; both run in the pipeline |
@@ -188,7 +191,7 @@ flowchart LR
     IAMB -. AssumeRoleWithWebIdentity .-> SAA
 ```
 
-Terraform creates the secret shell and the IAM roles but never the password values, which are set out-of-band so they never land in Terraform state. **Secret values are write-once:** MySQL reads its passwords only on first start, so overwriting a value later breaks the next app pod. The recovery and rotation procedures are in [terraform/README.md](terraform/README.md). Images are pulled from ECR using the node group's IAM role, so no image pull secret exists.
+Terraform creates the secret shell and the IAM roles but never the password values, which are set out-of-band so they never land in Terraform state. **Secret values are write-once:** MySQL reads its passwords only on first start, so overwriting a value later breaks the next app pod. The recovery and rotation procedures are in the [runbook](docs/runbook.md#secrets). Images are pulled from ECR using the node group's IAM role, so no image pull secret exists.
 
 ### Observability
 
@@ -257,6 +260,24 @@ kubectl exec -n monitoring deploy/kube-prometheus-stack-grafana -c grafana -- gr
 - Check the pods are running: `kubectl get pods -n monitoring` (everything should be `Running`).
 - Logs missing: `kubectl logs -n monitoring deploy/alloy -c alloy --tail=50` should show no `level=error` lines.
 - Password rejected: re-read it from the Secret; do not trust an old copy, because reinstalling the chart can generate a new one.
+
+## Model providers and data residency
+
+The service talks to Claude through one of two providers, chosen by `LLM_PROVIDER`. Both use the same prompt, the same forced tool schema and the same scoring, so their results are comparable.
+
+```mermaid
+flowchart LR
+    SVC[KYC service] --> SW{LLM_PROVIDER}
+    SW -->|bedrock| BR["Amazon Bedrock<br/>your AWS account, IRSA, no secret<br/>in. profile: India only"]
+    SW -->|anthropic| AN["Anthropic API<br/>API key from Secrets Manager<br/>documents leave AWS"]
+    BR --> OK([Residency-friendly])
+    AN --> DEMO([Demo, synthetic documents only])
+```
+
+- **The demo runs on `anthropic`.** This AWS account's Bedrock quota is zero and could not be raised in time, so the deployed environments call the Anthropic API.
+- **A bank that needs data residency switches to `bedrock`.** It is a one-line manifest change: the IAM role, the India-only inference profiles and the Terraform for them are already in place. In a UAE deployment the Region would be `me-central-1`, with the caveats about inference routing in [docs/data-residency.md](docs/data-residency.md).
+- **The service is protected by an API key** (`X-API-Key`), because a working model key means every upload costs money. The pod will not start without it.
+- **Never upload a real document while `anthropic` is selected.**
 
 ## Branching Strategy
 
@@ -380,7 +401,7 @@ flowchart TD
     Z[(Existing Route 53 hosted zone<br/>referenced as data source)] -.-> P
 ```
 
-Each stack has its own remote state in S3 with native locking, so qa and prod can be applied or destroyed independently of each other and of the shared platform. `terraform destroy` only removes what Terraform created. The hosted zone is a data source and is never touched. The runbook (apply order, pause and resume, secret rotation, destroy safety) is in [terraform/README.md](terraform/README.md).
+Each stack has its own remote state in S3 with native locking, so qa and prod can be applied or destroyed independently of each other and of the shared platform. `terraform destroy` only removes what Terraform created. The hosted zone is a data source and is never touched. The build order and what each stack creates are in [terraform/README.md](terraform/README.md); pause and resume, secret rotation and destroy safety are in the [runbook](docs/runbook.md); what the infrastructure looks like is in [eks-explained](docs/eks-explained.md).
 
 ### Manual DNS step (one-time per hostname)
 
@@ -412,7 +433,7 @@ Accuracy is measured on a **golden set of 18 synthetic, watermarked SPECIMEN doc
 - **Wrong fields caught by the review flag**: the rate at which mistakes were flagged
 - Breakdowns by difficulty, document type and field, plus latency and token counts
 
-**Results: none yet.** The run needs Bedrock quota, which is zero today. When the quota is approved, the run is:
+**Results: none yet.** The run needs model access: Bedrock quota (zero today) or an Anthropic API key (`--provider anthropic`, see [app/eval/README.md](app/eval/README.md)). With Bedrock, the run is:
 
 ```bash
 cd app && .venv/bin/python -m eval.run --models haiku --limit 1   # one document first
@@ -429,6 +450,7 @@ app/
   kyc/                   FastAPI service (extraction, validation, storage, PII-safe logging, review page)
   tests/                 pytest suite (no AWS or MySQL needed)
   eval/                  Golden set generator, scoring and the Haiku vs Sonnet accuracy runner
+docs/                    Runbook, troubleshooting, decision log, security gates, EKS explained
 Dockerfile               Multi-stage Python image; non-root (UID 10001), port 5000
 sonar-project.properties SonarCloud project config
 k8-manifests/
@@ -462,7 +484,7 @@ KYC_DATABASE_URL="sqlite+pysqlite:///kyc-local.db" AWS_REGION=ap-south-1 \
 
 Then open <http://localhost:5000/ui> (or `/docs`). Use the synthetic documents in `app/eval/golden/` and never real personal documents.
 
-Settings (environment variables): `PORT`, `AWS_REGION`, `BEDROCK_MODEL_ID` (default `in.anthropic.claude-haiku-4-5-20251001-v1:0`), `CONFIDENCE_THRESHOLD` (0.85), `MAX_UPLOAD_BYTES`, `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` (or `KYC_DATABASE_URL`), `KYC_API_KEY` (optional), `OTEL_EXPORTER_OTLP_ENDPOINT` (optional), `LOG_LEVEL`.
+Settings (environment variables): `PORT`, `AWS_REGION`, `BEDROCK_MODEL_ID` (default `in.anthropic.claude-haiku-4-5-20251001-v1:0`), `CONFIDENCE_THRESHOLD` (0.85), `MAX_UPLOAD_BYTES`, `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` (or `KYC_DATABASE_URL`), `KYC_API_KEY` (optional locally, required in the cluster), `LLM_PROVIDER` (`bedrock` or `anthropic`), `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL` (default `claude-haiku-4-5`) for the Anthropic provider, `OTEL_EXPORTER_OTLP_ENDPOINT` (optional), `LOG_LEVEL`.
 
 Container image:
 
@@ -475,18 +497,63 @@ The image, ECR repository and Deployment are still named `nodejs-app`, from the 
 ## Prerequisites
 
 - **To develop:** Python 3.12 and Docker.
-- **For live extraction:** an AWS account with Amazon Bedrock access to Claude Haiku 4.5 and a non-zero quota (see Known gaps).
+- **For live extraction:** either an AWS account with Amazon Bedrock access to Claude Haiku 4.5 and a non-zero quota, or an Anthropic API key with prepaid credit (see Known gaps).
 - **To deploy:** an AWS account (region `ap-south-1`) and credentials to apply the Terraform stacks once, a registered domain with a Route 53 hosted zone, a GitHub repository with Actions, a SonarCloud project, Terraform 1.10 or later, `kubectl` and the AWS CLI. After the first apply, the pipeline uses OIDC only.
 
-## Known gaps
+## Known gaps and trade-offs
 
-- **Bedrock quota:** every Anthropic per-minute quota in this account is 0 (new-account default), so the deployed service returns 502 on uploads and the evaluation cannot run. Increases for Haiku 4.5 are requested; the Sonnet 5 request still needs a retry.
-- **API key is off:** the service supports `X-API-Key`, but the manifests do not set it yet, so `/ui` and the API are open on the public hostnames. That is acceptable only while the quota is zero and only synthetic documents are used. It must be enabled before the first real upload.
-- **Scanners report, they do not block:** `ENFORCE_SCANS` is off, so Checkov and Trivy only report today. Gitleaks is a hard gate. The Sonar quality gate blocks only once enforcement is on.
-- **Not yet in place:** NetworkPolicies, PodDisruptionBudgets, and a ServiceMonitor so Prometheus scrapes `/metrics`.
-- **Shared blast radius:** `qa` and `prod` share one cluster, one ALB and two nodes. This is a cost decision, and the isolation boundary is IAM plus namespace RBAC.
-- **Branch protection is deferred:** `qa` may only block force-push and deletion, because the pipeline's bot commits the deployed tag to it.
-- **Region and data-residency note:** the write-up on why `ap-south-1`, and what changes for a UAE bank, is pending the evaluation results.
+Two kinds of limitation, kept apart on purpose:
+
+- **Gap:** something that is missing or unfinished and should exist before this is used for real. Each has a plan.
+- **Trade-off:** a deliberate choice that gives something up (usually cost or simplicity) and that I would defend today. Each says what would make me change it.
+
+The reasoning behind the trade-offs is in the [decision log](docs/decisions.md).
+
+| Item | Type | What it means | Plan or trigger to revisit |
+|---|---|---|---|
+| **Bedrock quota is zero** | Gap | Bedrock cannot be used in this account yet, so the demo uses the Anthropic API. Every Bedrock rate quota I checked (all vendors) is 0, at the minimum the console lets you request | Raise through AWS Support, then set `LLM_PROVIDER=bedrock` |
+| **No accuracy numbers** | Gap | The golden set and runner exist, but no result has been committed | Run `eval.run` (either provider) |
+| **Bedrock route not exercised end to end** | Gap | The IAM role, profiles and code path exist and are unit-tested, but have not run against real Bedrock here | Verify after the quota arrives |
+| **Demo sends documents to the Anthropic API** | Trade-off | Documents leave AWS and India for the demo. Acceptable only with synthetic documents; real data needs Bedrock ([docs/data-residency.md](docs/data-residency.md)) | Switch to `bedrock` |
+| **No NetworkPolicies or PodDisruptionBudgets** | Gap | Any pod can reach any other pod, and a node drain can take all replicas down | Test a default-deny policy in QA first ([security-gates.md](docs/security-gates.md)) |
+| **No `/metrics` scraping or alert receivers** | Gap | The service exposes metrics, but Prometheus does not collect them, and Alertmanager notifies nobody | Add a ServiceMonitor and a receiver |
+| **Rollback not rehearsed** | Gap | The procedure is documented in the [runbook](docs/runbook.md#roll-back) but has not been exercised | Try it once in QA |
+| **One cluster, one ALB, one NAT gateway** | Trade-off | `qa` and `prod` share a control plane, nodes and blast radius; isolation is IAM, namespaces and quotas. Saves roughly the cost of a second cluster | Real production traffic or a hard-isolation requirement |
+| **Public EKS API endpoint** | Trade-off | GitHub-hosted runners have no fixed IPs, so the API is open to the internet and protected by IAM | Self-hosted runners with fixed IPs |
+| **`qa` branch protection is light** | Trade-off | Force-push and deletion are blocked, but PRs cannot be required because the pipeline's bot pushes the deployed tag to `qa` | A ruleset that lets the `github-actions` app bypass |
+| **Scanners block, with suppressions and `--ignore-unfixed`** | Trade-off | Accepted findings are suppressed with a written reason, and CVEs with no available fix do not block | Reviewed with [security-gates.md](docs/security-gates.md) |
+| **No Semgrep, cosign or Kyverno** | Trade-off | Optional hardening skipped to keep the pipeline simple; images are not signed | Supply-chain requirements |
+| **`X-API-Key` is one shared secret** | Trade-off | Simple and enough for a demo, but there are no per-user identities, scopes or an audit trail of who called what | SSO or per-client keys for real use |
+| **Uploaded files are never stored** | Trade-off | Minimal data held, but a document cannot be re-processed later | A re-processing requirement |
+| **Single-instance Loki and Tempo on EBS, 15 days** | Trade-off | One pod failure means a gap in logs or traces; no S3 backend | Longer retention or higher availability needs |
+| **Manual DNS aliases and manual Terraform apply** | Trade-off | Fewer moving parts for two hostnames and rare changes | More hostnames or more contributors |
+| **Docs-only changes skip the pipeline** | Trade-off | A secret committed in a Markdown-only change is caught only by the next full run | Revisit if the repo gets more contributors |
+| **Image and ECR repository still named `nodejs-app`** | Trade-off | A misleading name, kept so the swap changed no pipeline or Terraform | A deliberate rename PR |
+
+## Operations
+
+The step-by-step procedures are in the [runbook](docs/runbook.md). In short:
+
+- **Release:** merge a feature PR into `qa` (it deploys to the QA namespace), check `/healthz` and `/ui`, then open a PR from `qa` to `main` with a merge commit. The prod pipeline pauses for your approval and shows which image it will promote.
+- **Pause to save cost:** scale the node group to zero; resume the same way. Pausing saves the nodes only, roughly a third of the running cost.
+- **Secrets:** set once per environment and never overwritten; the recovery and rotation steps are in the runbook.
+- **Something broke:** start from the symptom table in [troubleshooting](docs/troubleshooting.md).
+- **A scanner blocked a merge:** see [security-gates.md](docs/security-gates.md).
+
+## Documentation
+
+| Document | Contents |
+|---|---|
+| [docs/README.md](docs/README.md) | Index of all documentation |
+| [terraform/README.md](terraform/README.md) | The stacks, what each creates, the build order and conventions |
+| [docs/runbook.md](docs/runbook.md) | Release, promote, roll back, pause and resume, secrets, destroy |
+| [docs/troubleshooting.md](docs/troubleshooting.md) | Symptoms, causes and fixes for problems this project has hit |
+| [docs/security-gates.md](docs/security-gates.md) | What blocks the pipeline, every suppression and how to turn gates on or off |
+| [docs/decisions.md](docs/decisions.md) | Why each choice was made and what it costs |
+| [docs/data-residency.md](docs/data-residency.md) | The model-provider switch and what changes for a bank with residency requirements |
+| [docs/eks-explained.md](docs/eks-explained.md) | Kubernetes and EKS concepts, with diagrams of what runs where |
+| [app/eval/README.md](app/eval/README.md) | The accuracy evaluation |
+| [CLAUDE.md](CLAUDE.md) | Rules and the app contract for AI coding assistants |
 
 ## Roadmap
 
@@ -494,7 +561,10 @@ The image, ECR repository and Deployment are still named `nodejs-app`, from the 
 |------|-------|--------|
 | Platform | EKS, ALB, ACM, secrets, QA and prod pipelines, observability | done, live |
 | KYC service | Extraction API, per-field confidence, PII-safe logs and traces, review page | done, deployed |
-| Accuracy evaluation | Golden set and runner built; numbers pending | waiting on Bedrock quota |
-| API key | `<env>/kyc-api-key` secret, ExternalSecret and a required env var | next, before any real upload |
-| Region note | Region choice and UAE data-residency changes, with the eval results | pending |
-| Hardening | Enforce scanners, NetworkPolicies, ServiceMonitor, branch protection | deferred |
+| Provider switch | `LLM_PROVIDER`: Anthropic API for the demo, Bedrock for residency | done |
+| API key | `<env>/kyc-api-key` secret, ExternalSecret and a required env var | done |
+| Residency note | Provider switch and what changes for a UAE bank ([docs/data-residency.md](docs/data-residency.md)) | done |
+| Accuracy evaluation | Golden set and runner built (both providers); numbers pending | not run yet |
+| Branch protection | Rulesets on `qa` and `main`, GitHub Environment `prod` with a required reviewer | done |
+| Scanner enforcement | Checkov, Trivy and the Sonar gate block the pipeline ([docs/security-gates.md](docs/security-gates.md)) | done |
+| Hardening | NetworkPolicies, ServiceMonitor | deferred |

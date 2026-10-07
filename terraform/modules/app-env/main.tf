@@ -72,8 +72,29 @@ resource "kubernetes_limit_range_v1" "this" {
 # The secret container only. The values (DB credentials) are set out-of-band so they
 # never enter Terraform state.
 resource "aws_secretsmanager_secret" "mysql" {
+  #checkov:skip=CKV_AWS_149:Default aws/secretsmanager key is sufficient here; a customer-managed key adds cost and is parked
+  #checkov:skip=CKV2_AWS_57:Write-once secret: MySQL reads it only at first start, so automatic rotation would break the app
   name                    = "${var.env_name}/mysql-secret"
   description             = "MySQL credentials for the ${var.env_name} environment. Values are set manually."
+  recovery_window_in_days = var.secret_recovery_window_days
+}
+
+# API keys for the KYC service. Same rule as above: containers only, values set by hand.
+# `kyc-api-key` is the X-API-Key clients must send; `llm-api-key` is the Anthropic API key,
+# used only while LLM_PROVIDER=anthropic.
+resource "aws_secretsmanager_secret" "kyc_api_key" {
+  #checkov:skip=CKV_AWS_149:Default aws/secretsmanager key is sufficient here; a customer-managed key adds cost and is parked
+  #checkov:skip=CKV2_AWS_57:Rotated by hand (set a new value, force-sync, restart); automatic rotation needs a Lambda and is parked
+  name                    = "${var.env_name}/kyc-api-key"
+  description             = "X-API-Key that clients must send to the KYC service in ${var.env_name}. Value is set manually."
+  recovery_window_in_days = var.secret_recovery_window_days
+}
+
+resource "aws_secretsmanager_secret" "llm_api_key" {
+  #checkov:skip=CKV_AWS_149:Default aws/secretsmanager key is sufficient here; a customer-managed key adds cost and is parked
+  #checkov:skip=CKV2_AWS_57:A third-party API key cannot be rotated by AWS; it is replaced by hand in the provider console
+  name                    = "${var.env_name}/llm-api-key"
+  description             = "Anthropic API key for the ${var.env_name} environment (demo provider). Value is set manually."
   recovery_window_in_days = var.secret_recovery_window_days
 }
 
@@ -107,11 +128,17 @@ resource "aws_iam_role" "eso" {
 
 data "aws_iam_policy_document" "eso_read_secret" {
   statement {
-    actions   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
-    resources = [aws_secretsmanager_secret.mysql.arn]
+    actions = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
+    resources = [
+      aws_secretsmanager_secret.mysql.arn,
+      aws_secretsmanager_secret.kyc_api_key.arn,
+      aws_secretsmanager_secret.llm_api_key.arn,
+    ]
   }
 }
 
+# The policy keeps its original name (renaming would destroy and recreate it); it now covers
+# the MySQL secret and the two API-key secrets of this environment, and nothing else.
 resource "aws_iam_role_policy" "eso" {
   name   = "read-${var.env_name}-mysql-secret"
   role   = aws_iam_role.eso.id
