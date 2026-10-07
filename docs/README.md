@@ -8,10 +8,11 @@
 | [troubleshooting.md](troubleshooting.md) | Something failed and you have an error message |
 | [security-gates.md](security-gates.md) | A scanner blocked a merge, or you want to turn the gates on or off |
 | [decisions.md](decisions.md) | You want to know why something was built this way and what it costs |
+| [data-residency.md](data-residency.md) | You want to know where documents go, how to switch the model provider, or what changes for a bank with residency requirements |
 | [eks-explained.md](eks-explained.md) | You want the Kubernetes and EKS concepts, and a picture of what runs where |
 | [app/eval/README.md](../app/eval/README.md) | You want to run or read the accuracy evaluation |
 | [CLAUDE.md](../CLAUDE.md) | You are an AI coding assistant working in this repository (rules, decisions, the app contract) |
 
-**Not written yet:** a data-residency note (region choice and what changes for a UAE bank), which waits for the evaluation results, and an API reference with request and response examples. The endpoints are listed in the main README and the service serves interactive documentation at `/docs`.
+**Not written yet:** an API reference with request and response examples. The endpoints are listed in the main README and the service serves interactive documentation at `/docs`.
 
 Keep this index current when a document is added or removed.

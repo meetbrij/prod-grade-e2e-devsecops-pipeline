@@ -26,6 +26,14 @@ class Settings:
     api_key: str | None
     otlp_endpoint: str | None
     log_level: str
+    # Which model API answers: Amazon Bedrock (default) or the Anthropic API directly.
+    llm_provider: str = "bedrock"
+    anthropic_model: str = "claude-haiku-4-5"
+    anthropic_api_key: str | None = None
+
+    @property
+    def active_model_id(self) -> str:
+        return self.anthropic_model if self.llm_provider == "anthropic" else self.bedrock_model_id
 
 
 def _db_url() -> str:
@@ -44,6 +52,16 @@ def _db_url() -> str:
     ).render_as_string(hide_password=False)
 
 
+LLM_PROVIDERS = ("bedrock", "anthropic")
+
+
+def _llm_provider() -> str:
+    provider = os.environ.get("LLM_PROVIDER", "bedrock").strip().lower()
+    if provider not in LLM_PROVIDERS:
+        raise ValueError(f"LLM_PROVIDER must be one of {', '.join(LLM_PROVIDERS)}")
+    return provider
+
+
 def load_settings() -> Settings:
     return Settings(
         aws_region=os.environ.get("AWS_REGION", "ap-south-1"),
@@ -57,4 +75,7 @@ def load_settings() -> Settings:
         api_key=os.environ.get("KYC_API_KEY") or None,
         otlp_endpoint=os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT") or None,
         log_level=os.environ.get("LOG_LEVEL", "INFO").upper(),
+        llm_provider=_llm_provider(),
+        anthropic_model=os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5"),
+        anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY") or None,
     )

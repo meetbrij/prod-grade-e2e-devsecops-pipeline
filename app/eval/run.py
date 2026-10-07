@@ -1,9 +1,12 @@
 """Runs the golden set through the real extraction code and reports accuracy per model.
 
-    python -m eval.run --models haiku sonnet
+    python -m eval.run --models haiku sonnet                         # Amazon Bedrock
+    ANTHROPIC_API_KEY=... python -m eval.run --provider anthropic     # Anthropic API
 
-Needs AWS credentials with Bedrock access in the region (a few cents of tokens). Results are
-written to eval/results/: one JSON file per model and a RESULTS.md comparison table.
+Bedrock needs AWS credentials with model access and quota in the region. The Anthropic API needs
+an API key in ANTHROPIC_API_KEY (never on the command line). Either costs a few cents of tokens.
+Use synthetic documents only. Results are written to eval/results/: one JSON file per model and a
+RESULTS.md comparison table; both record which provider produced them.
 """
 
 from __future__ import annotations
@@ -17,13 +20,15 @@ from pathlib import Path
 from typing import Any
 
 from eval.metrics import FieldScore, score_field, summarize
-from kyc.extraction import BedrockExtractor, ExtractionError, Extractor
+from kyc.extraction import AnthropicExtractor, BedrockExtractor, ExtractionError, Extractor
 from kyc.schemas import FIELD_SPECS, DocumentType
 
 MODELS = {
     "haiku": "in.anthropic.claude-haiku-4-5-20251001-v1:0",
     "sonnet": "in.anthropic.claude-sonnet-5",
 }
+# The same models by their Anthropic API names.
+ANTHROPIC_MODELS = {"haiku": "claude-haiku-4-5", "sonnet": "claude-sonnet-5"}
 CONTENT_TYPES = {
     ".png": "image/png",
     ".jpg": "image/jpeg",
@@ -139,14 +144,43 @@ def render_markdown(runs: dict[str, dict[str, Any]], threshold: float) -> str:
         out.append(f"\n## {title}\n\n" + header)
         for name in first["summary"][key]:
             out.append(row(name, lambda r, n=name, k=key: _pct(r["summary"][k].get(n))))
-    out.append("\nModels: " + "; ".join(f"`{a}` = `{runs[a]['model_id']}`" for a in aliases) + "\n")
+    providers = {r.get("provider", "bedrock") for r in runs.values()}
+    out.append(
+        "\nModels: "
+        + "; ".join(f"`{a}` = `{runs[a]['model_id']}`" for a in aliases)
+        + f". Provider: {', '.join(sorted(providers))}.\n"
+    )
     return "".join(out)
 
 
-def main() -> None:
+def make_extractor(provider: str, model_id: str, threshold: float, region: str) -> Extractor:
+    """Build the real extractor for the chosen provider."""
+    if provider == "anthropic":
+        import os
+
+        import anthropic
+
+        key = os.environ.get("ANTHROPIC_API_KEY")
+        if not key:
+            raise SystemExit(
+                "Set ANTHROPIC_API_KEY in the environment to use --provider anthropic."
+            )
+        return AnthropicExtractor(
+            anthropic.Anthropic(api_key=key, max_retries=2, timeout=90.0), model_id, threshold
+        )
+
     import boto3
     from botocore.config import Config
 
+    client = boto3.client(
+        "bedrock-runtime",
+        region_name=region,
+        config=Config(retries={"max_attempts": 3, "mode": "standard"}, read_timeout=90),
+    )
+    return BedrockExtractor(client, model_id, threshold)
+
+
+def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--models",
@@ -156,26 +190,28 @@ def main() -> None:
     )
     parser.add_argument("--golden", type=Path, default=Path(__file__).parent / "golden")
     parser.add_argument("--out", type=Path, default=Path(__file__).parent / "results")
-    parser.add_argument("--region", default="ap-south-1")
+    parser.add_argument(
+        "--provider",
+        choices=["bedrock", "anthropic"],
+        default="bedrock",
+        help="Amazon Bedrock (default) or the Anthropic API",
+    )
+    parser.add_argument("--region", default="ap-south-1", help="Bedrock region")
     parser.add_argument("--threshold", type=float, default=0.85)
     parser.add_argument("--limit", type=int, default=None, help="only the first N documents")
     args = parser.parse_args()
 
     manifest = json.loads((args.golden / "labels.json").read_text())
-    client = boto3.client(
-        "bedrock-runtime",
-        region_name=args.region,
-        config=Config(retries={"max_attempts": 3, "mode": "standard"}, read_timeout=90),
-    )
+    aliases = ANTHROPIC_MODELS if args.provider == "anthropic" else MODELS
     args.out.mkdir(parents=True, exist_ok=True)
 
     runs: dict[str, dict[str, Any]] = {}
     for alias in args.models:
-        model_id = MODELS.get(alias, alias)
-        print(f"\n== {alias} ({model_id})")
+        model_id = aliases.get(alias, alias)
+        print(f"\n== {alias} ({model_id}) via {args.provider}")
         started = time.perf_counter()
         scores, timing = evaluate(
-            BedrockExtractor(client, model_id, args.threshold),
+            make_extractor(args.provider, model_id, args.threshold, args.region),
             manifest,
             args.golden,
             args.limit,
@@ -184,7 +220,8 @@ def main() -> None:
         run = {
             "alias": alias,
             "model_id": model_id,
-            "region": args.region,
+            "provider": args.provider,
+            "region": args.region if args.provider == "bedrock" else None,
             "threshold": args.threshold,
             "ran_at": datetime.now(UTC).isoformat(timespec="seconds"),
             "wall_seconds": round(time.perf_counter() - started, 1),
@@ -197,8 +234,8 @@ def main() -> None:
         if timing["errors"] and timing["errors"] == run["summary"]["documents"]:
             raise SystemExit(
                 f"\nEvery call for '{alias}' failed ({'; '.join(timing['error_messages'])}). "
-                "No accuracy was measured. Check AWS credentials, Bedrock permissions "
-                "and the region."
+                "No accuracy was measured. Check the credentials or API key, the model access "
+                "and quota, and (for Bedrock) the region."
             )
         s = run["summary"]
         print(

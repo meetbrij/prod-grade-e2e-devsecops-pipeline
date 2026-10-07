@@ -38,6 +38,18 @@ and look for "Cross-region model inference requests per minute for Anthropic Cla
 and the matching "tokens per minute" quota. The India-only `in.` profiles use the
 "Cross-region" quotas, not the "Global cross-region" ones.
 
+## Running through the Anthropic API instead of Bedrock
+
+If the Bedrock quota is not available, the same Claude models can be evaluated through Anthropic's own API, with the same prompt, schema and scoring. Put the key in the environment (never on the command line) and use synthetic documents only:
+
+```bash
+printf "Anthropic API key: "; read -s ANTHROPIC_API_KEY; echo; export ANTHROPIC_API_KEY
+.venv/bin/python -m eval.run --provider anthropic --models haiku --limit 1
+.venv/bin/python -m eval.run --provider anthropic
+```
+
+`haiku` and `sonnet` map to `claude-haiku-4-5` and `claude-sonnet-5`. The result files record which provider produced them, so say so when quoting numbers.
+
 ## What is measured
 
 | Metric | Meaning |

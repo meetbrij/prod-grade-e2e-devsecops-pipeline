@@ -61,7 +61,16 @@ class RedactingFilter(logging.Filter):
 class JsonFormatter(logging.Formatter):
     """One JSON object per line, which Loki and Grafana parse easily."""
 
-    _EXTRA = ("document_id", "document_type", "model_id", "outcome", "fields", "flagged", "ms")
+    _EXTRA = (
+        "document_id",
+        "document_type",
+        "model_id",
+        "provider",
+        "outcome",
+        "fields",
+        "flagged",
+        "ms",
+    )
 
     def format(self, record: logging.LogRecord) -> str:
         payload = {

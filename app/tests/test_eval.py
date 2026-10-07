@@ -208,3 +208,18 @@ def test_markdown_report_compares_models():
     assert "# KYC extraction accuracy" in md
     assert "| Field accuracy | 100.0% | 100.0% |" in md
     assert "`haiku` = `id-haiku`" in md and "By difficulty" in md and "By field" in md
+
+
+def test_make_extractor_needs_a_key_for_the_anthropic_provider(monkeypatch):
+    import pytest
+
+    from eval.run import make_extractor
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    with pytest.raises(SystemExit, match="ANTHROPIC_API_KEY"):
+        make_extractor("anthropic", "claude-haiku-4-5", 0.85, "ap-south-1")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    assert (
+        make_extractor("anthropic", "claude-haiku-4-5", 0.85, "ap-south-1").provider == "anthropic"
+    )
+    assert make_extractor("bedrock", "m", 0.85, "ap-south-1").provider == "bedrock"
