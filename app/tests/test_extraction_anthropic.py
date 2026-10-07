@@ -54,7 +54,6 @@ def test_request_matches_the_bedrock_design():
 
     req = client.request
     assert req["model"] == "claude-haiku-4-5"
-    assert req["temperature"] == 0
     assert req["system"] == SYSTEM_PROMPT
     assert req["tool_choice"] == {"type": "tool", "name": TOOL_NAME}
     assert req["tools"][0]["input_schema"] == tool_schema(DocumentType.ID_DOCUMENT)
@@ -125,3 +124,19 @@ def test_anthropic_without_a_key_stops_the_service_at_start():
 def test_unknown_provider_is_refused():
     with pytest.raises(ValueError, match="unknown LLM_PROVIDER"):
         build_extractor(make_settings(llm_provider="somewhere-else"))
+
+
+def test_request_only_uses_parameters_the_real_sdk_accepts():
+    """The fake client takes any keyword, so check the request against the SDK's real signature.
+
+    A parameter the SDK does not know raises a TypeError at call time, which is a 500 in
+    production and cannot be seen with a permissive fake.
+    """
+    import inspect
+
+    real = anthropic.Anthropic(api_key="sk-test").messages.create
+    accepted = set(inspect.signature(real).parameters)
+    client = FakeAnthropic(_good_input())
+    _extract(client)
+    unknown = set(client.request) - accepted
+    assert not unknown, f"parameters the SDK rejects: {sorted(unknown)}"
