@@ -1,45 +1,47 @@
 {
   "alias": "sonnet",
-  "model_id": "in.anthropic.claude-sonnet-5",
-  "region": "ap-south-1",
+  "model_id": "claude-sonnet-5",
+  "provider": "anthropic",
+  "region": null,
   "threshold": 0.85,
-  "ran_at": "2026-10-05T05:45:22+00:00",
-  "wall_seconds": 1.6,
+  "ran_at": "2026-10-08T08:36:58+00:00",
+  "wall_seconds": 47.1,
   "summary": {
     "fields": 100,
     "documents": 18,
-    "field_accuracy": 0.0,
-    "document_accuracy": 0.0,
-    "flagged_rate": 1.0,
-    "auto_accept_accuracy": null,
-    "error_catch_rate": 1.0,
-    "wrong_fields": 100,
+    "field_accuracy": 0.99,
+    "document_accuracy": 0.9444,
+    "flagged_rate": 0.0,
+    "auto_accept_accuracy": 0.99,
+    "error_catch_rate": 0.0,
+    "wrong_fields": 1,
     "accuracy_by_field": {
-      "address_line": 0.0,
-      "city": 0.0,
-      "date_of_birth": 0.0,
-      "expiry_date": 0.0,
-      "full_name": 0.0,
-      "id_number": 0.0,
-      "issue_date": 0.0,
-      "issuer": 0.0,
-      "issuing_country": 0.0,
-      "nationality": 0.0
+      "address_line": 0.875,
+      "city": 1.0,
+      "date_of_birth": 1.0,
+      "expiry_date": 1.0,
+      "full_name": 1.0,
+      "id_number": 1.0,
+      "issue_date": 1.0,
+      "issuer": 1.0,
+      "issuing_country": 1.0,
+      "nationality": 1.0
     },
     "accuracy_by_document_type": {
-      "id_document": 0.0,
-      "proof_of_address": 0.0
+      "id_document": 1.0,
+      "proof_of_address": 0.975
     },
     "accuracy_by_difficulty": {
-      "clean": 0.0,
-      "degraded": 0.0
+      "clean": 1.0,
+      "degraded": 0.9697
     }
   },
   "timing": {
-    "errors": 18,
-    "avg_latency_ms": null,
-    "input_tokens": 0,
-    "output_tokens": 0
+    "errors": 0,
+    "error_messages": [],
+    "avg_latency_ms": 2617,
+    "input_tokens": 51160,
+    "output_tokens": 3938
   },
   "fields": [
     {
@@ -48,10 +50,10 @@
       "difficulty": "clean",
       "field": "full_name",
       "expected": "WEI NOVAK",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "WEI NOVAK",
+      "correct": true,
+      "confidence": 0.99,
+      "flagged": false
     },
     {
       "document": "id_01.png",
@@ -59,10 +61,10 @@
       "difficulty": "clean",
       "field": "date_of_birth",
       "expected": "1969-02-18",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "1969-02-18",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "id_01.png",
@@ -70,10 +72,10 @@
       "difficulty": "clean",
       "field": "id_number",
       "expected": "SPC1367923B",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "SPC1367923B",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "id_01.png",
@@ -81,10 +83,10 @@
       "difficulty": "clean",
       "field": "nationality",
       "expected": "EXAMPLIAN",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "EXAMPLIAN",
+      "correct": true,
+      "confidence": 0.99,
+      "flagged": false
     },
     {
       "document": "id_01.png",
@@ -92,10 +94,10 @@
       "difficulty": "clean",
       "field": "expiry_date",
       "expected": "2033-09-03",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "2033-09-03",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "id_01.png",
@@ -103,10 +105,10 @@
       "difficulty": "clean",
       "field": "issuing_country",
       "expected": "REPUBLIC OF EXAMPLIA",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "REPUBLIC OF EXAMPLIA",
+      "correct": true,
+      "confidence": 0.99,
+      "flagged": false
     },
     {
       "document": "id_02.png",
@@ -114,10 +116,10 @@
       "difficulty": "clean",
       "field": "full_name",
       "expected": "MEI DUBOIS",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "MEI DUBOIS",
+      "correct": true,
+      "confidence": 0.99,
+      "flagged": false
     },
     {
       "document": "id_02.png",
@@ -125,10 +127,10 @@
       "difficulty": "clean",
       "field": "date_of_birth",
       "expected": "2001-07-19",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "2001-07-19",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "id_02.png",
@@ -136,10 +138,10 @@
       "difficulty": "clean",
       "field": "id_number",
       "expected": "SPC4814106A",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "SPC4814106A",
+      "correct": true,
+      "confidence": 0.97,
+      "flagged": false
     },
     {
       "document": "id_02.png",
@@ -147,10 +149,10 @@
       "difficulty": "clean",
       "field": "nationality",
       "expected": "EXAMPLIAN",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "EXAMPLIAN",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "id_02.png",
@@ -158,10 +160,10 @@
       "difficulty": "clean",
       "field": "expiry_date",
       "expected": "2034-06-20",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "2034-06-20",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "id_02.png",
@@ -169,10 +171,10 @@
       "difficulty": "clean",
       "field": "issuing_country",
       "expected": "REPUBLIC OF EXAMPLIA",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Republic of Examplia",
+      "correct": true,
+      "confidence": 0.97,
+      "flagged": false
     },
     {
       "document": "id_03.png",
@@ -180,10 +182,10 @@
       "difficulty": "clean",
       "field": "full_name",
       "expected": "AISHA COSTA",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "AISHA COSTA",
+      "correct": true,
+      "confidence": 0.99,
+      "flagged": false
     },
     {
       "document": "id_03.png",
@@ -191,10 +193,10 @@
       "difficulty": "clean",
       "field": "date_of_birth",
       "expected": "1984-05-10",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "1984-05-10",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "id_03.png",
@@ -202,10 +204,10 @@
       "difficulty": "clean",
       "field": "id_number",
       "expected": "SPC1893491D",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "SPC1893491D",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "id_03.png",
@@ -213,10 +215,10 @@
       "difficulty": "clean",
       "field": "nationality",
       "expected": "EXAMPLIAN",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "EXAMPLIAN",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "id_03.png",
@@ -224,10 +226,10 @@
       "difficulty": "clean",
       "field": "expiry_date",
       "expected": "2035-10-02",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "2035-10-02",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "id_03.png",
@@ -235,10 +237,10 @@
       "difficulty": "clean",
       "field": "issuing_country",
       "expected": "REPUBLIC OF EXAMPLIA",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "REPUBLIC OF EXAMPLIA",
+      "correct": true,
+      "confidence": 0.97,
+      "flagged": false
     },
     {
       "document": "id_04.jpg",
@@ -246,10 +248,10 @@
       "difficulty": "degraded",
       "field": "full_name",
       "expected": "WEI SAID TAN",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "WEI SAID TAN",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "id_04.jpg",
@@ -257,10 +259,10 @@
       "difficulty": "degraded",
       "field": "date_of_birth",
       "expected": "1960-12-06",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "1960-12-06",
+      "correct": true,
+      "confidence": 0.95,
+      "flagged": false
     },
     {
       "document": "id_04.jpg",
@@ -268,10 +270,10 @@
       "difficulty": "degraded",
       "field": "id_number",
       "expected": "SPC8934428C",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "SPC8934428C",
+      "correct": true,
+      "confidence": 0.95,
+      "flagged": false
     },
     {
       "document": "id_04.jpg",
@@ -279,10 +281,10 @@
       "difficulty": "degraded",
       "field": "nationality",
       "expected": "EXAMPLIAN",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "EXAMPLIAN",
+      "correct": true,
+      "confidence": 0.95,
+      "flagged": false
     },
     {
       "document": "id_04.jpg",
@@ -290,10 +292,10 @@
       "difficulty": "degraded",
       "field": "expiry_date",
       "expected": "2033-09-05",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "2033-09-05",
+      "correct": true,
+      "confidence": 0.95,
+      "flagged": false
     },
     {
       "document": "id_04.jpg",
@@ -301,10 +303,10 @@
       "difficulty": "degraded",
       "field": "issuing_country",
       "expected": "REPUBLIC OF EXAMPLIA",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "REPUBLIC OF EXAMPLIA",
+      "correct": true,
+      "confidence": 0.97,
+      "flagged": false
     },
     {
       "document": "id_05.png",
@@ -312,10 +314,10 @@
       "difficulty": "clean",
       "field": "full_name",
       "expected": "SOFIA ALI NAIR",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "SOFIA ALI NAIR",
+      "correct": true,
+      "confidence": 0.99,
+      "flagged": false
     },
     {
       "document": "id_05.png",
@@ -323,10 +325,10 @@
       "difficulty": "clean",
       "field": "date_of_birth",
       "expected": "1987-02-02",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "1987-02-02",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "id_05.png",
@@ -334,10 +336,10 @@
       "difficulty": "clean",
       "field": "id_number",
       "expected": "SPC8175587B",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "SPC8175587B",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "id_05.png",
@@ -345,10 +347,10 @@
       "difficulty": "clean",
       "field": "nationality",
       "expected": "EXAMPLIAN",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "EXAMPLIAN",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "id_05.png",
@@ -356,10 +358,10 @@
       "difficulty": "clean",
       "field": "expiry_date",
       "expected": "2033-01-11",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "2033-01-11",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "id_05.png",
@@ -367,10 +369,10 @@
       "difficulty": "clean",
       "field": "issuing_country",
       "expected": "REPUBLIC OF EXAMPLIA",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "REPUBLIC OF EXAMPLIA",
+      "correct": true,
+      "confidence": 0.97,
+      "flagged": false
     },
     {
       "document": "id_06.png",
@@ -378,10 +380,10 @@
       "difficulty": "clean",
       "field": "full_name",
       "expected": "IVAN AZIZ",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "IVAN AZIZ",
+      "correct": true,
+      "confidence": 0.99,
+      "flagged": false
     },
     {
       "document": "id_06.png",
@@ -389,10 +391,10 @@
       "difficulty": "clean",
       "field": "date_of_birth",
       "expected": "1964-03-24",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "1964-03-24",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "id_06.png",
@@ -400,10 +402,10 @@
       "difficulty": "clean",
       "field": "id_number",
       "expected": "SPC6109002F",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "SPC6109002F",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "id_06.png",
@@ -411,10 +413,10 @@
       "difficulty": "clean",
       "field": "nationality",
       "expected": "EXAMPLIAN",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "EXAMPLIAN",
+      "correct": true,
+      "confidence": 0.99,
+      "flagged": false
     },
     {
       "document": "id_06.png",
@@ -422,10 +424,10 @@
       "difficulty": "clean",
       "field": "expiry_date",
       "expected": "2036-08-02",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "2036-08-02",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "id_06.png",
@@ -433,10 +435,10 @@
       "difficulty": "clean",
       "field": "issuing_country",
       "expected": "REPUBLIC OF EXAMPLIA",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "REPUBLIC OF EXAMPLIA",
+      "correct": true,
+      "confidence": 0.99,
+      "flagged": false
     },
     {
       "document": "id_07.jpg",
@@ -444,10 +446,10 @@
       "difficulty": "degraded",
       "field": "full_name",
       "expected": "MEI NOOR SILVA",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "MEI NOOR SILVA",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "id_07.jpg",
@@ -455,10 +457,10 @@
       "difficulty": "degraded",
       "field": "date_of_birth",
       "expected": "1961-01-25",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "1961-01-25",
+      "correct": true,
+      "confidence": 0.97,
+      "flagged": false
     },
     {
       "document": "id_07.jpg",
@@ -466,10 +468,10 @@
       "difficulty": "degraded",
       "field": "id_number",
       "expected": "SPC7045893A",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "SPC7045893A",
+      "correct": true,
+      "confidence": 0.97,
+      "flagged": false
     },
     {
       "document": "id_07.jpg",
@@ -477,10 +479,10 @@
       "difficulty": "degraded",
       "field": "nationality",
       "expected": "EXAMPLIAN",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "EXAMPLIAN",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "id_07.jpg",
@@ -488,10 +490,10 @@
       "difficulty": "degraded",
       "field": "expiry_date",
       "expected": "2035-01-17",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "2035-01-17",
+      "correct": true,
+      "confidence": 0.97,
+      "flagged": false
     },
     {
       "document": "id_07.jpg",
@@ -499,10 +501,10 @@
       "difficulty": "degraded",
       "field": "issuing_country",
       "expected": "REPUBLIC OF EXAMPLIA",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Republic of Examplia",
+      "correct": true,
+      "confidence": 0.97,
+      "flagged": false
     },
     {
       "document": "id_08.png",
@@ -510,10 +512,10 @@
       "difficulty": "clean",
       "field": "full_name",
       "expected": "LAYLA SAID TAN",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "LAYLA SAID TAN",
+      "correct": true,
+      "confidence": 0.99,
+      "flagged": false
     },
     {
       "document": "id_08.png",
@@ -521,10 +523,10 @@
       "difficulty": "clean",
       "field": "date_of_birth",
       "expected": "1973-05-12",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "1973-05-12",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "id_08.png",
@@ -532,10 +534,10 @@
       "difficulty": "clean",
       "field": "id_number",
       "expected": "SPC6640874A",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "SPC6640874A",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "id_08.png",
@@ -543,10 +545,10 @@
       "difficulty": "clean",
       "field": "nationality",
       "expected": "EXAMPLIAN",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "EXAMPLIAN",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "id_08.png",
@@ -554,10 +556,10 @@
       "difficulty": "clean",
       "field": "expiry_date",
       "expected": "2034-11-27",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "2034-11-27",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "id_08.png",
@@ -565,10 +567,10 @@
       "difficulty": "clean",
       "field": "issuing_country",
       "expected": "REPUBLIC OF EXAMPLIA",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "REPUBLIC OF EXAMPLIA",
+      "correct": true,
+      "confidence": 0.97,
+      "flagged": false
     },
     {
       "document": "id_09.png",
@@ -576,10 +578,10 @@
       "difficulty": "clean",
       "field": "full_name",
       "expected": "ELENA NOOR COSTA",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "ELENA NOOR COSTA",
+      "correct": true,
+      "confidence": 0.99,
+      "flagged": false
     },
     {
       "document": "id_09.png",
@@ -587,10 +589,10 @@
       "difficulty": "clean",
       "field": "date_of_birth",
       "expected": "1980-10-07",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "1980-10-07",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "id_09.png",
@@ -598,10 +600,10 @@
       "difficulty": "clean",
       "field": "id_number",
       "expected": "SPC7764913H",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "SPC7764913H",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "id_09.png",
@@ -609,10 +611,10 @@
       "difficulty": "clean",
       "field": "nationality",
       "expected": "EXAMPLIAN",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "EXAMPLIAN",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "id_09.png",
@@ -620,10 +622,10 @@
       "difficulty": "clean",
       "field": "expiry_date",
       "expected": "2035-10-03",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "2035-10-03",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "id_09.png",
@@ -631,10 +633,10 @@
       "difficulty": "clean",
       "field": "issuing_country",
       "expected": "REPUBLIC OF EXAMPLIA",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "REPUBLIC OF EXAMPLIA",
+      "correct": true,
+      "confidence": 0.97,
+      "flagged": false
     },
     {
       "document": "id_10.jpg",
@@ -642,10 +644,10 @@
       "difficulty": "degraded",
       "field": "full_name",
       "expected": "KWAME COSTA",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "KWAME COSTA",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "id_10.jpg",
@@ -653,10 +655,10 @@
       "difficulty": "degraded",
       "field": "date_of_birth",
       "expected": "1968-02-25",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "1968-02-25",
+      "correct": true,
+      "confidence": 0.97,
+      "flagged": false
     },
     {
       "document": "id_10.jpg",
@@ -664,10 +666,10 @@
       "difficulty": "degraded",
       "field": "id_number",
       "expected": "SPC5194493D",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "SPC5194493D",
+      "correct": true,
+      "confidence": 0.95,
+      "flagged": false
     },
     {
       "document": "id_10.jpg",
@@ -675,10 +677,10 @@
       "difficulty": "degraded",
       "field": "nationality",
       "expected": "EXAMPLIAN",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "EXAMPLIAN",
+      "correct": true,
+      "confidence": 0.97,
+      "flagged": false
     },
     {
       "document": "id_10.jpg",
@@ -686,10 +688,10 @@
       "difficulty": "degraded",
       "field": "expiry_date",
       "expected": "2033-05-21",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "2033-05-21",
+      "correct": true,
+      "confidence": 0.97,
+      "flagged": false
     },
     {
       "document": "id_10.jpg",
@@ -697,10 +699,10 @@
       "difficulty": "degraded",
       "field": "issuing_country",
       "expected": "REPUBLIC OF EXAMPLIA",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "REPUBLIC OF EXAMPLIA",
+      "correct": true,
+      "confidence": 0.97,
+      "flagged": false
     },
     {
       "document": "poa_01.png",
@@ -708,10 +710,10 @@
       "difficulty": "clean",
       "field": "full_name",
       "expected": "Amina Maria Tan",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Amina Maria Tan",
+      "correct": true,
+      "confidence": 0.99,
+      "flagged": false
     },
     {
       "document": "poa_01.png",
@@ -719,10 +721,10 @@
       "difficulty": "clean",
       "field": "address_line",
       "expected": "Apartment 1710, Harbour Heights, Fictional Avenue 44",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Apartment 1710, Harbour Heights, Fictional Avenue 44",
+      "correct": true,
+      "confidence": 0.9,
+      "flagged": false
     },
     {
       "document": "poa_01.png",
@@ -730,10 +732,10 @@
       "difficulty": "clean",
       "field": "city",
       "expected": "Mockford",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Mockford",
+      "correct": true,
+      "confidence": 0.95,
+      "flagged": false
     },
     {
       "document": "poa_01.png",
@@ -741,10 +743,10 @@
       "difficulty": "clean",
       "field": "issue_date",
       "expected": "2026-09-21",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "2026-09-21",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "poa_01.png",
@@ -752,10 +754,10 @@
       "difficulty": "clean",
       "field": "issuer",
       "expected": "Sample Gas & Electric",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Sample Gas & Electric",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "poa_02.png",
@@ -763,10 +765,10 @@
       "difficulty": "clean",
       "field": "full_name",
       "expected": "Elena Aziz",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Elena Aziz",
+      "correct": true,
+      "confidence": 0.99,
+      "flagged": false
     },
     {
       "document": "poa_02.png",
@@ -774,10 +776,10 @@
       "difficulty": "clean",
       "field": "address_line",
       "expected": "Unit 3207, Palm Court Tower, Imaginary Street 47",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Unit 3207, Palm Court Tower, Imaginary Street 47",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "poa_02.png",
@@ -785,10 +787,10 @@
       "difficulty": "clean",
       "field": "city",
       "expected": "Mockford",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Mockford",
+      "correct": true,
+      "confidence": 0.97,
+      "flagged": false
     },
     {
       "document": "poa_02.png",
@@ -796,10 +798,10 @@
       "difficulty": "clean",
       "field": "issue_date",
       "expected": "2026-08-26",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "2026-08-26",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "poa_02.png",
@@ -807,10 +809,10 @@
       "difficulty": "clean",
       "field": "issuer",
       "expected": "Mockford Municipal Services",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Mockford Municipal Services",
+      "correct": true,
+      "confidence": 0.99,
+      "flagged": false
     },
     {
       "document": "poa_03.png",
@@ -818,10 +820,10 @@
       "difficulty": "degraded",
       "field": "full_name",
       "expected": "Amina Khan",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Amina Khan",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "poa_03.png",
@@ -829,10 +831,10 @@
       "difficulty": "degraded",
       "field": "address_line",
       "expected": "Apartment 3039, Harbour Heights, Imaginary Street 11",
-      "actual": null,
+      "actual": "Apartment 3039, Harbour Heights, Imaginary Street",
       "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "confidence": 0.9,
+      "flagged": false
     },
     {
       "document": "poa_03.png",
@@ -840,10 +842,10 @@
       "difficulty": "degraded",
       "field": "city",
       "expected": "Samplebury",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Samplebury",
+      "correct": true,
+      "confidence": 0.95,
+      "flagged": false
     },
     {
       "document": "poa_03.png",
@@ -851,10 +853,10 @@
       "difficulty": "degraded",
       "field": "issue_date",
       "expected": "2026-07-18",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "2026-07-18",
+      "correct": true,
+      "confidence": 0.95,
+      "flagged": false
     },
     {
       "document": "poa_03.png",
@@ -862,10 +864,10 @@
       "difficulty": "degraded",
       "field": "issuer",
       "expected": "Imaginary Power & Water Co.",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Imaginary Power & Water Co.",
+      "correct": true,
+      "confidence": 0.97,
+      "flagged": false
     },
     {
       "document": "poa_04.png",
@@ -873,10 +875,10 @@
       "difficulty": "clean",
       "field": "full_name",
       "expected": "Aisha Silva",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Aisha Silva",
+      "correct": true,
+      "confidence": 0.99,
+      "flagged": false
     },
     {
       "document": "poa_04.png",
@@ -884,10 +886,10 @@
       "difficulty": "clean",
       "field": "address_line",
       "expected": "Unit 1309, Example Plaza, Testing Lane 75",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Unit 1309, Example Plaza, Testing Lane 75",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "poa_04.png",
@@ -895,10 +897,10 @@
       "difficulty": "clean",
       "field": "city",
       "expected": "Exampleton",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Exampleton",
+      "correct": true,
+      "confidence": 0.97,
+      "flagged": false
     },
     {
       "document": "poa_04.png",
@@ -906,10 +908,10 @@
       "difficulty": "clean",
       "field": "issue_date",
       "expected": "2026-07-30",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "2026-07-30",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "poa_04.png",
@@ -917,10 +919,10 @@
       "difficulty": "clean",
       "field": "issuer",
       "expected": "Testland Broadband",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Testland Broadband",
+      "correct": true,
+      "confidence": 0.99,
+      "flagged": false
     },
     {
       "document": "poa_05.png",
@@ -928,10 +930,10 @@
       "difficulty": "clean",
       "field": "full_name",
       "expected": "Mei Anne Nair",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Mei Anne Nair",
+      "correct": true,
+      "confidence": 0.99,
+      "flagged": false
     },
     {
       "document": "poa_05.png",
@@ -939,10 +941,10 @@
       "difficulty": "clean",
       "field": "address_line",
       "expected": "Apartment 1500, Example Plaza, Imaginary Street 57",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Apartment 1500, Example Plaza, Imaginary Street 57",
+      "correct": true,
+      "confidence": 0.97,
+      "flagged": false
     },
     {
       "document": "poa_05.png",
@@ -950,10 +952,10 @@
       "difficulty": "clean",
       "field": "city",
       "expected": "Exampleton",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Exampleton",
+      "correct": true,
+      "confidence": 0.97,
+      "flagged": false
     },
     {
       "document": "poa_05.png",
@@ -961,10 +963,10 @@
       "difficulty": "clean",
       "field": "issue_date",
       "expected": "2026-08-28",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "2026-08-28",
+      "correct": true,
+      "confidence": 0.95,
+      "flagged": false
     },
     {
       "document": "poa_05.png",
@@ -972,10 +974,10 @@
       "difficulty": "clean",
       "field": "issuer",
       "expected": "Fictional Telecom Ltd",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Fictional Telecom Ltd",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "poa_06.pdf",
@@ -983,10 +985,10 @@
       "difficulty": "degraded",
       "field": "full_name",
       "expected": "Priya Petrov",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Priya Petrov",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "poa_06.pdf",
@@ -994,10 +996,10 @@
       "difficulty": "degraded",
       "field": "address_line",
       "expected": "Flat 2110, Harbour Heights, Sample Road 66",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Flat 2110, Harbour Heights, Sample Road 66",
+      "correct": true,
+      "confidence": 0.95,
+      "flagged": false
     },
     {
       "document": "poa_06.pdf",
@@ -1005,10 +1007,10 @@
       "difficulty": "degraded",
       "field": "city",
       "expected": "Mockford",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Mockford",
+      "correct": true,
+      "confidence": 0.97,
+      "flagged": false
     },
     {
       "document": "poa_06.pdf",
@@ -1016,10 +1018,10 @@
       "difficulty": "degraded",
       "field": "issue_date",
       "expected": "2026-09-24",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "2026-09-24",
+      "correct": true,
+      "confidence": 0.95,
+      "flagged": false
     },
     {
       "document": "poa_06.pdf",
@@ -1027,10 +1029,10 @@
       "difficulty": "degraded",
       "field": "issuer",
       "expected": "Mockford Municipal Services",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Mockford Municipal Services",
+      "correct": true,
+      "confidence": 0.97,
+      "flagged": false
     },
     {
       "document": "poa_07.pdf",
@@ -1038,10 +1040,10 @@
       "difficulty": "clean",
       "field": "full_name",
       "expected": "Marco Noor Farouk",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Marco Noor Farouk",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "poa_07.pdf",
@@ -1049,10 +1051,10 @@
       "difficulty": "clean",
       "field": "address_line",
       "expected": "Unit 2514, Harbour Heights, Sample Road 16",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Unit 2514, Harbour Heights, Sample Road 16",
+      "correct": true,
+      "confidence": 0.97,
+      "flagged": false
     },
     {
       "document": "poa_07.pdf",
@@ -1060,10 +1062,10 @@
       "difficulty": "clean",
       "field": "city",
       "expected": "Samplebury",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Samplebury",
+      "correct": true,
+      "confidence": 0.95,
+      "flagged": false
     },
     {
       "document": "poa_07.pdf",
@@ -1071,10 +1073,10 @@
       "difficulty": "clean",
       "field": "issue_date",
       "expected": "2026-09-01",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "2026-09-01",
+      "correct": true,
+      "confidence": 0.95,
+      "flagged": false
     },
     {
       "document": "poa_07.pdf",
@@ -1082,10 +1084,10 @@
       "difficulty": "clean",
       "field": "issuer",
       "expected": "Fictional Telecom Ltd",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Fictional Telecom Ltd",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "poa_08.pdf",
@@ -1093,10 +1095,10 @@
       "difficulty": "degraded",
       "field": "full_name",
       "expected": "Elena Murray",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Elena Murray",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     },
     {
       "document": "poa_08.pdf",
@@ -1104,10 +1106,10 @@
       "difficulty": "degraded",
       "field": "address_line",
       "expected": "Unit 1233, Example Plaza, Imaginary Street 39",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Unit 1233, Example Plaza, Imaginary Street 39",
+      "correct": true,
+      "confidence": 0.95,
+      "flagged": false
     },
     {
       "document": "poa_08.pdf",
@@ -1115,10 +1117,10 @@
       "difficulty": "degraded",
       "field": "city",
       "expected": "Placeholder Bay",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Placeholder Bay",
+      "correct": true,
+      "confidence": 0.9,
+      "flagged": false
     },
     {
       "document": "poa_08.pdf",
@@ -1126,10 +1128,10 @@
       "difficulty": "degraded",
       "field": "issue_date",
       "expected": "2026-08-04",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "2026-08-04",
+      "correct": true,
+      "confidence": 0.95,
+      "flagged": false
     },
     {
       "document": "poa_08.pdf",
@@ -1137,10 +1139,10 @@
       "difficulty": "degraded",
       "field": "issuer",
       "expected": "Testland Broadband",
-      "actual": null,
-      "correct": false,
-      "confidence": 0.0,
-      "flagged": true
+      "actual": "Testland Broadband",
+      "correct": true,
+      "confidence": 0.98,
+      "flagged": false
     }
   ]
 }
