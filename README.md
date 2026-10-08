@@ -2,8 +2,6 @@
 
 A KYC document extraction service (FastAPI, Claude through Amazon Bedrock or the Anthropic API, MySQL) delivered through a **DevSecOps pipeline**: GitHub Actions with Gitleaks, Checkov, Trivy, SBOM and SonarCloud; secretless AWS access through GitHub OIDC; External Secrets and IRSA; an ALB with Route 53 and ACM; and a Prometheus, Loki, Tempo and Grafana stack. It runs on one AWS EKS cluster with approval-gated promotion from `qa` to `prod`, and it is all provisioned with Terraform.
 
-> **Status:** the platform is live. QA and prod run end to end, including the approval-gated promotion, blocking security scanners and the observability stack. The extraction service is deployed behind an API key and its UI works. **The live demo answers through the Anthropic API** because this AWS account's Bedrock quota is currently zero; the platform is built for Bedrock and switching is one setting (see [Model providers and data residency](#model-providers-and-data-residency)). **No accuracy evaluation has been run yet**, so this README contains **no accuracy numbers**. They will appear only when they come from a file committed in `app/eval/results/`.
-
 **Contents:** [Intro](#intro) · [What it does](#what-it-does) · [Application](#application) · [Tech Stack](#tech-stack) · [Architecture](#architecture) · [Branching](#branching-strategy) · [CI/CD](#cicd-pipelines) · [Environments](#environments-and-access) · [Terraform](#infrastructure-as-code-terraform) · [Evaluation](#evaluation) · [Local development](#local-development) · [Operations](#operations) · [Model providers](#model-providers-and-data-residency) · [Known gaps and trade-offs](#known-gaps-and-trade-offs) · [Documentation](#documentation) · [Roadmap](#roadmap)
 
 ## Intro
@@ -16,6 +14,17 @@ The project has two goals, in this order:
 2. **A realistic workload.** The service is deliberately built to the standards a regulated workload needs: documents are never stored, personal data never reaches logs or traces, and inference stays in India.
 
 The pipeline is deliberately app-agnostic. The workload started as a sample Node app and was swapped for this service without redesigning the pipeline; the contract any app must meet is in [CLAUDE.md](CLAUDE.md).
+
+## What was delivered
+
+| Requirement | Status | Where |
+|---|---|---|
+| KYC extraction API with per-field confidence scores | Done, verified on QA and prod | [Application](#application) |
+| PII masked in logs and traces; results stored in MySQL | Done; a test reads real log output to prove no values are logged | [Application](#application) |
+| Synthetic golden set and a field-accuracy evaluation | Done. Sonnet 5: 99.0% field accuracy; Haiku 4.5: 92.0% (18 synthetic documents, via the Anthropic API) | [Evaluation](#evaluation) |
+| Swap into the pipeline (Dockerfile, schema, manifests, model access) | Done | [CI/CD Pipelines](#cicd-pipelines) |
+| Region choice and what changes for a UAE bank | Done | [docs/data-residency.md](docs/data-residency.md) |
+| Bedrock through IRSA | Built and unit-tested; **not exercised against real Bedrock** (quota is zero) | [Known gaps](#known-gaps-and-trade-offs) |
 
 ## What it does
 
@@ -57,7 +66,7 @@ One container image, one Deployment per environment.
 | Piece | Technology |
 |-------|------------|
 | Service | Python 3.12, FastAPI, SQLAlchemy, boto3 (Bedrock Converse API), the Anthropic SDK |
-| Model | Claude Haiku 4.5 by default, Sonnet 5 for the accuracy comparison. On Bedrock through India-only inference profiles (`in.` prefix), inference stays in `ap-south-1` and `ap-south-2`. The demo uses the same models through the Anthropic API |
+| Model | The deployed demo runs Claude Sonnet 5 (the more accurate of the two on the golden set); the code defaults to Haiku 4.5, the cheaper model, and the other is one setting away. On Bedrock through India-only inference profiles (`in.` prefix), inference stays in `ap-south-1` and `ap-south-2`. The demo uses the same models through the Anthropic API |
 | Database | MySQL 8.0 StatefulSet (tables `documents` and `extractions`) |
 | Review page | Built-in vanilla HTML and JS at `/ui`, with a strict Content Security Policy; values are rendered as text only |
 | Observability | Prometheus metrics at `/metrics`, OpenTelemetry traces to Tempo, JSON logs to Loki |
@@ -433,14 +442,32 @@ Accuracy is measured on a **golden set of 18 synthetic, watermarked SPECIMEN doc
 - **Wrong fields caught by the review flag**: the rate at which mistakes were flagged
 - Breakdowns by difficulty, document type and field, plus latency and token counts
 
-**Results: none yet.** The run needs model access: Bedrock quota (zero today) or an Anthropic API key (`--provider anthropic`, see [app/eval/README.md](app/eval/README.md)). With Bedrock, the run is:
+**Results** (18 documents, 100 fields, review threshold 0.85, measured through the **Anthropic API**; the full tables are in [app/eval/results/RESULTS.md](app/eval/results/RESULTS.md)):
+
+| Metric | Haiku 4.5 | Sonnet 5 |
+|---|---|---|
+| Field accuracy | 92.0% | **99.0%** |
+| Document accuracy (all fields right) | 55.6% | **94.4%** |
+| Wrong fields | 8 | 1 |
+| Wrong fields caught by the review flag | 0% | 0% |
+| Fields sent to review | 0% | 0% |
+| Average latency | 2.5 s | 2.6 s |
+| Tokens in / out | 43,404 / 3,925 | 51,160 / 3,938 |
+
+What the numbers say, and what they do not:
+
+- **Sonnet 5 is clearly more accurate at about the same latency.** Haiku's errors cluster in two fields: `issuing_country` (50%) and `address_line` (75%). In six of its eight errors it changed the spelling of an invented country name (for example `EXAMPLIA` read as `EXEMPLIA`), the kind of mistake a model makes when it "corrects" a word it does not recognize. Both models dropped a trailing house number from one address. Real country names would probably not trigger the spelling errors, so treat the Haiku figure as a pessimistic one.
+- **The review flag did not work on this set.** No field was sent to review, so none of the nine wrong fields (8 and 1) was caught. Every field came back with a self-reported confidence of 0.90 or higher, including the wrong ones (some at 0.95 to 1.0), so a threshold of 0.85 never fires and the model's confidence does not separate right from wrong here. This is the most important finding: self-reported confidence alone is not a safe review trigger. Realistic fixes are other signals (agreement between two models, checks against a known list of issuers or countries, stricter format rules) rather than just a higher threshold. This is listed under Known gaps.
+- **18 documents is a smoke test, not a benchmark.** The figures carry wide error bars, the documents are synthetic and clean, and nothing here predicts accuracy on real customer documents.
+
+To reproduce (the Anthropic route needs a key in `ANTHROPIC_API_KEY`; with Bedrock, drop `--provider anthropic`):
 
 ```bash
-cd app && .venv/bin/python -m eval.run --models haiku --limit 1   # one document first
-.venv/bin/python -m eval.run                                       # then the full comparison
+cd app && .venv/bin/python -m eval.run --provider anthropic --models haiku --limit 1   # one document first
+.venv/bin/python -m eval.run --provider anthropic                                      # then the full comparison
 ```
 
-It writes `app/eval/results/RESULTS.md`, which will be committed and summarized here. With 18 documents the numbers will be illustrative, not statistical. Details are in [app/eval/README.md](app/eval/README.md).
+Details are in [app/eval/README.md](app/eval/README.md).
 
 ## Repository Layout
 
@@ -512,11 +539,12 @@ The reasoning behind the trade-offs is in the [decision log](docs/decisions.md).
 | Item | Type | What it means | Plan or trigger to revisit |
 |---|---|---|---|
 | **Bedrock quota is zero** | Gap | Bedrock cannot be used in this account yet, so the demo uses the Anthropic API. Every Bedrock rate quota I checked (all vendors) is 0, at the minimum the console lets you request | Raise through AWS Support, then set `LLM_PROVIDER=bedrock` |
-| **No accuracy numbers** | Gap | The golden set and runner exist, but no result has been committed | Run `eval.run` (either provider) |
+| **The review flag does not catch errors** | Gap | On the golden set every field had self-reported confidence of 0.90 or more, so nothing was flagged and none of the nine wrong fields was caught ([Evaluation](#evaluation)) | Add independent signals (second-model agreement, known-value checks) instead of relying on confidence |
 | **Bedrock route not exercised end to end** | Gap | The IAM role, profiles and code path exist and are unit-tested, but have not run against real Bedrock here | Verify after the quota arrives |
 | **Demo sends documents to the Anthropic API** | Trade-off | Documents leave AWS and India for the demo. Acceptable only with synthetic documents; real data needs Bedrock ([docs/data-residency.md](docs/data-residency.md)) | Switch to `bedrock` |
 | **No NetworkPolicies or PodDisruptionBudgets** | Gap | Any pod can reach any other pod, and a node drain can take all replicas down | Test a default-deny policy in QA first ([security-gates.md](docs/security-gates.md)) |
 | **No `/metrics` scraping or alert receivers** | Gap | The service exposes metrics, but Prometheus does not collect them, and Alertmanager notifies nobody | Add a ServiceMonitor and a receiver |
+| **Cluster CPU headroom is thin** | Gap | Two `t3a.large` nodes carry two projects plus observability. The QA MySQL disk is pinned to one zone, and after a restart it could not be scheduled because that node was 90% full on CPU requests ([troubleshooting](docs/troubleshooting.md#mysql-0-stays-pending-after-a-restart)) | Trim requests or add a third node |
 | **Rollback not rehearsed** | Gap | The procedure is documented in the [runbook](docs/runbook.md#roll-back) but has not been exercised | Try it once in QA |
 | **One cluster, one ALB, one NAT gateway** | Trade-off | `qa` and `prod` share a control plane, nodes and blast radius; isolation is IAM, namespaces and quotas. Saves roughly the cost of a second cluster | Real production traffic or a hard-isolation requirement |
 | **Public EKS API endpoint** | Trade-off | GitHub-hosted runners have no fixed IPs, so the API is open to the internet and protected by IAM | Self-hosted runners with fixed IPs |
@@ -531,6 +559,13 @@ The reasoning behind the trade-offs is in the [decision log](docs/decisions.md).
 | **Image and ECR repository still named `nodejs-app`** | Trade-off | A misleading name, kept so the swap changed no pipeline or Terraform | A deliberate rename PR |
 
 ## Operations
+
+The hostnames below answer only while the cluster is running (it is paused or destroyed between demos). Each environment has its own `X-API-Key`.
+
+| Environment | Hostname | Notes |
+|---|---|---|
+| QA | `qa-proj3-aigateway.bolarbrijesh.com` | `/ui` is the review page, `/healthz` the health check |
+| Prod | `proj3-aigateway.bolarbrijesh.com` | **No `prod-` prefix** |
 
 The step-by-step procedures are in the [runbook](docs/runbook.md). In short:
 
@@ -564,7 +599,10 @@ The step-by-step procedures are in the [runbook](docs/runbook.md). In short:
 | Provider switch | `LLM_PROVIDER`: Anthropic API for the demo, Bedrock for residency | done |
 | API key | `<env>/kyc-api-key` secret, ExternalSecret and a required env var | done |
 | Residency note | Provider switch and what changes for a UAE bank ([docs/data-residency.md](docs/data-residency.md)) | done |
-| Accuracy evaluation | Golden set and runner built (both providers); numbers pending | not run yet |
+| End-to-end verification | Synthetic ID and proof-of-address uploads on QA and prod | done |
+| Accuracy evaluation | Run on both models through the Anthropic API; results committed | done |
+| Review-flag reliability | Replace confidence-only flagging with independent signals | open |
+| Bedrock verification | Switch `LLM_PROVIDER` to `bedrock` and re-test | waiting on AWS quota |
 | Branch protection | Rulesets on `qa` and `main`, GitHub Environment `prod` with a required reviewer | done |
 | Scanner enforcement | Checkov, Trivy and the Sonar gate block the pipeline ([docs/security-gates.md](docs/security-gates.md)) | done |
-| Hardening | NetworkPolicies, ServiceMonitor | deferred |
+| Hardening | NetworkPolicies, ServiceMonitor, alert receivers, PodDisruptionBudgets | deferred |

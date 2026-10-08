@@ -24,6 +24,14 @@ If a scan job blocks the run, see [security-gates.md](security-gates.md).
 
 ## Promote to production
 
+**Pre-flight, before you approve:** both prod secrets must have a value (`prod/kyc-api-key`, `prod/llm-api-key`), otherwise the new pod stays in `CreateContainerConfigError` and the pipeline step fails at the rollout wait (the old pods keep serving). Check that the ExternalSecrets are synced; a new environment needs this once:
+
+```bash
+kubectl get externalsecret -n prod
+```
+
+Every row should say `SecretSynced`. The prod URL is `https://proj3-aigateway.bolarbrijesh.com` (no `prod-` prefix).
+
 1. Open a PR from `qa` to `main` and merge it with a **merge commit** (not squash).
 2. The `Production CD Pipeline` starts. Its `prepare` job prints which QA-built image is being promoted: the SHA, the prod tag `prod-<sha>` and a link to the QA commit.
 3. Open the run, check that SHA, then **approve** the pending `prod` deployment (GitHub Environment `prod`).
@@ -72,6 +80,17 @@ While paused, pods are `Pending`, the ALB has no healthy targets and both sites 
 **A QA pipeline run while paused fails** at the rollout wait because there are no nodes. Resume first, then re-run the failed jobs.
 
 What still costs money while paused: the EKS control plane (about 73 USD per month), the NAT gateway (about 35 USD plus data), the ALB (about 18 USD) and the EBS volumes. That is around two thirds of the running cost. For a longer break, [destroy](#destroy) instead; everything rebuilds from Terraform and the pipeline, but the databases start empty. These figures are estimates, so check the AWS pricing calculator.
+
+## Capacity and restarts
+
+Two `t3a.large` nodes (about 1930m of allocatable CPU each) carry this project, the other project and the observability stack. Scheduling counts CPU *requests*, not actual use. The QA and prod MySQL disks are EBS volumes pinned to one zone, so each MySQL pod can run only on the node in that zone. After a pause, resume or node replacement, check:
+
+```bash
+kubectl get pods -A | grep -v Running
+kubectl describe nodes | grep -A 6 "Allocated resources"
+```
+
+If a MySQL pod is `Pending` with `Insufficient cpu` and `didn't match PersistentVolume's node affinity`, the node in the disk's zone is full: free CPU there (scale down or fix broken pods) or add a node. See [troubleshooting](troubleshooting.md#mysql-0-stays-pending-after-a-restart).
 
 ## Secrets
 
