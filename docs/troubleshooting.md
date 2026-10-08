@@ -15,6 +15,8 @@ Problems this project has actually hit, each with the symptom, the cause and the
 | Terraform: `the server has asked for the client to provide credentials` | [Expired token](#terraform-apply-fails-midway-with-client-credentials) |
 | A Helm release is stuck `pending-install` | [Stuck Helm release](#a-helm-release-is-stuck-in-pending-install) |
 | Both sites return 503 | [Paused cluster](#both-sites-return-503) |
+| `mysql-0` stays Pending after a restart; the app crash-loops | [CPU and zone](#mysql-0-stays-pending-after-a-restart) |
+| The prod URL does not load | [Wrong hostname](#the-prod-url-does-not-load) |
 | QA deploy job times out at the rollout | [Rollout timeout](#the-qa-deploy-job-times-out-at-the-rollout) |
 | Grafana is empty or the login fails | [Grafana](../README.md#using-grafana) |
 
@@ -102,6 +104,20 @@ terraform state rm helm_release.<name>
 ```
 
 Then apply again. Check the state address first with `terraform state list`.
+
+## mysql-0 stays Pending after a restart
+
+**Symptom:** `mysql-0` is `Pending` and the app pod is in `CrashLoopBackOff` with `Can't connect to MySQL server on 'mysql'` in its previous log (`kubectl logs deployment/nodejs-app -n <env> --previous`).
+
+**Cause:** the MySQL disk is an EBS volume in one availability zone, so the pod can run only on the node in that zone. `kubectl describe pod mysql-0 -n <env>` shows `Insufficient cpu` for that node and `didn't match PersistentVolume's node affinity` for the other. That node was full on CPU *requests* (it happened with 1750m of 1930m used while MySQL needs 250m). The app is not the problem; it exits after waiting 90 seconds for the database and recovers by itself once MySQL runs.
+
+**Fix:** free CPU on the node in the volume's zone. Find the zone with `kubectl get pv <name> -o jsonpath='{.spec.nodeAffinity}'`, list what is on that node, and scale down or repair pods that hold requests but serve nothing (stuck `Init`, `CrashLoopBackOff` or `CreateContainerConfigError` pods). If it keeps recurring, trim CPU requests to match real use or raise the node group to three nodes. Details in the [runbook](runbook.md#capacity-and-restarts).
+
+## The prod URL does not load
+
+**Cause:** the prod host is `proj3-aigateway.bolarbrijesh.com`, with no `prod-` prefix. Only the QA host has a prefix (`qa-proj3-aigateway…`). A name with no Route 53 record never resolves.
+
+**Fix:** use the host in the Ingress: `kubectl get ingress -A`.
 
 ## Both sites return 503
 

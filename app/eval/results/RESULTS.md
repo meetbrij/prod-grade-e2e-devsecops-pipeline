@@ -6,43 +6,43 @@
 
 | Metric | haiku | sonnet |
 |---|---|---|
-| Field accuracy | 0.0% | 0.0% |
-| Document accuracy (all fields right) | 0.0% | 0.0% |
-| Accuracy of fields passed without review | n/a | n/a |
-| Wrong fields caught by the review flag | 100.0% | 100.0% |
-| Fields sent to review | 100.0% | 100.0% |
-| Wrong fields | 100 | 100 |
-| Failed calls | 18 | 18 |
-| Average latency | None ms | None ms |
-| Tokens (in / out) | 0 / 0 | 0 / 0 |
+| Field accuracy | 92.0% | 99.0% |
+| Document accuracy (all fields right) | 55.6% | 94.4% |
+| Accuracy of fields passed without review | 92.0% | 99.0% |
+| Wrong fields caught by the review flag | 0.0% | 0.0% |
+| Fields sent to review | 0.0% | 0.0% |
+| Wrong fields | 8 | 1 |
+| Failed calls | 0 | 0 |
+| Average latency | 2536 ms | 2617 ms |
+| Tokens (in / out) | 43404 / 3925 | 51160 / 3938 |
 
 ## By difficulty
 
 | Metric | haiku | sonnet |
 |---|---|---|
-| clean | 0.0% | 0.0% |
-| degraded | 0.0% | 0.0% |
+| clean | 92.5% | 100.0% |
+| degraded | 90.9% | 97.0% |
 
 ## By document type
 
 | Metric | haiku | sonnet |
 |---|---|---|
-| id_document | 0.0% | 0.0% |
-| proof_of_address | 0.0% | 0.0% |
+| id_document | 90.0% | 100.0% |
+| proof_of_address | 95.0% | 97.5% |
 
 ## By field
 
 | Metric | haiku | sonnet |
 |---|---|---|
-| address_line | 0.0% | 0.0% |
-| city | 0.0% | 0.0% |
-| date_of_birth | 0.0% | 0.0% |
-| expiry_date | 0.0% | 0.0% |
-| full_name | 0.0% | 0.0% |
-| id_number | 0.0% | 0.0% |
-| issue_date | 0.0% | 0.0% |
-| issuer | 0.0% | 0.0% |
-| issuing_country | 0.0% | 0.0% |
-| nationality | 0.0% | 0.0% |
+| address_line | 75.0% | 87.5% |
+| city | 100.0% | 100.0% |
+| date_of_birth | 100.0% | 100.0% |
+| expiry_date | 100.0% | 100.0% |
+| full_name | 100.0% | 100.0% |
+| id_number | 100.0% | 100.0% |
+| issue_date | 100.0% | 100.0% |
+| issuer | 100.0% | 100.0% |
+| issuing_country | 50.0% | 100.0% |
+| nationality | 90.0% | 100.0% |
 
-Models: `haiku` = `in.anthropic.claude-haiku-4-5-20251001-v1:0`; `sonnet` = `in.anthropic.claude-sonnet-5`
+Models: `haiku` = `claude-haiku-4-5`; `sonnet` = `claude-sonnet-5`. Provider: anthropic.

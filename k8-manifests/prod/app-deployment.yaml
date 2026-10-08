@@ -73,8 +73,10 @@ spec:
             # changes, the IRSA role and the India-only profile above are already in place.
             - name: LLM_PROVIDER
               value: anthropic
+            # Sonnet 5 scored 99.0% field accuracy vs 92.0% for Haiku 4.5 on the golden set, at about
+            # the same latency (docs/decisions.md). Set to claude-haiku-4-5 to trade accuracy for cost.
             - name: ANTHROPIC_MODEL
-              value: claude-haiku-4-5
+              value: claude-sonnet-5
             # Only needed while LLM_PROVIDER=anthropic; the service refuses to start without it.
             - name: ANTHROPIC_API_KEY
               valueFrom:
@@ -94,6 +96,12 @@ spec:
             # Traces go to Tempo (OTLP over HTTP).
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: http://tempo.monitoring.svc.cluster.local:4318
+            # FastAPI exports telemetry on its own when the endpoint above is set. Tempo accepts
+            # traces only, so turn the metrics and log exporters off (they would log a 404 a minute).
+            - name: OTEL_METRICS_EXPORTER
+              value: none
+            - name: OTEL_LOGS_EXPORTER
+              value: none
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
